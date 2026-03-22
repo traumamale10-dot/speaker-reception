@@ -135,7 +135,7 @@ tbody td { padding:9px 8px; }
 <body>
 
 <div class="header">
-  <div class="header-icon"></div>
+  <div class="header-icon">🎤</div>
   <h1>แผนกต้อนรับวิทยากร</h1>
   <div class="header-sub">Speaker Reception System</div>
   <div class="header-date" id="headerDate"></div>
@@ -256,6 +256,9 @@ async function loadFromSheets() {
     speakers.outside = ext;
     speakers.inside = int_;
     localStorage.setItem('spkData', JSON.stringify(speakers));
+    // ดึงข้อมูลเวลา/รถ/ทะเบียนจาก Sheets มา merge ด้วย
+    mergeSheetDataToRecords('outside', ext);
+    mergeSheetDataToRecords('inside', int_);
     renderList(); renderTable(); updateSummary();
     showToast('✅ โหลดข้อมูลสำเร็จ ' + (ext.length + int_.length) + ' คน');
   } catch(e) {
@@ -281,11 +284,29 @@ async function fetchSheet(name) {
   const json = JSON.parse(text.substring(47).slice(0,-2));
   return json.table.rows.filter(r => r.c && r.c[3] && r.c[3].v).map((r,i) => ({
     index: i,
-    num: r.c[0]?.v || (i+1),
-    date: r.c[1]?.f || r.c[1]?.v || '',
-    name: r.c[3]?.v || '',
-    hotel: r.c[4]?.v || '',
+    num:     r.c[0]?.v || (i+1),
+    date:    r.c[1]?.f || r.c[1]?.v || '',
+    name:    r.c[3]?.v || '',
+    hotel:   r.c[4]?.v || '',
+    timeIn:  r.c[5]?.v || '',   // คอลัมน์ F
+    timeOut: r.c[6]?.v || '',   // คอลัมน์ G
+    car:     r.c[7]?.v || '',   // คอลัมน์ H
+    plate:   r.c[8]?.v || '',   // คอลัมน์ I
   }));
+}
+
+// นำข้อมูลจาก Sheets มา merge เข้า records
+function mergeSheetDataToRecords(type, list) {
+  list.forEach((s, i) => {
+    const key = `${type}-${i}`;
+    if (!records[key]) records[key] = {};
+    // ถ้า Sheets มีข้อมูล ให้ใช้ข้อมูลจาก Sheets เป็นหลัก
+    if (s.timeIn)  records[key].timeIn  = s.timeIn;
+    if (s.timeOut) records[key].timeOut = s.timeOut;
+    if (s.car)     records[key].car     = s.car;
+    if (s.plate)   records[key].plate   = s.plate;
+  });
+  saveRec();
 }
 
 function getUniqueDates() {
@@ -335,17 +356,25 @@ function renderList() {
           </div>`;
         })()
       : `<div class="avatar-placeholder">👤</div>`;
-    const dot = hasOut ? 'out' : hasIn ? 'in' : '';
-    const card = hasOut ? 'status-out' : hasIn ? 'status-in' : '';
+    const st = getSmartStatus(rec);
+    const dot = st.done ? 'out' : (rec.timeIn ? 'in' : '');
+    const card = st.done ? 'status-out' : (rec.timeIn ? 'status-in' : '');
+    const statusBadge = st.done
+      ? `<span style="font-size:11px;padding:2px 8px;border-radius:20px;background:#f3f4f6;color:var(--muted);font-weight:600;">⚫ กลับแล้ว</span>`
+      : rec.timeIn
+      ? `<span style="font-size:11px;padding:2px 8px;border-radius:20px;background:#dcfce7;color:var(--success);font-weight:600;">🟢 เข้าแล้ว</span>`
+      : `<span style="font-size:11px;padding:2px 8px;border-radius:20px;background:#fef9ec;color:var(--accent);font-weight:600;">🟡 รอ</span>`;
     return `<div class="speaker-card ${card}">
       <div class="card-main" onclick="openModal('${currentType}',${s.index})">
         <div class="avatar-wrap">${photo}<div class="status-dot ${dot}"></div></div>
         <div class="card-info">
-          <div class="card-name">${s.name}</div>
-          <div class="card-date" style="font-size:12px;color:var(--muted);margin-top:2px;">📅 ${s.date||''}</div>
-          <div class="card-times" style="margin-top:6px;display:flex;flex-wrap:wrap;gap:5px;">
-            ${hasIn?`<span class="time-badge in">🟢 ${rec.timeIn}</span>`:''}
-            ${hasOut?`<span class="time-badge out">⚫ ${rec.timeOut}</span>`:''}
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+            <div class="card-name" style="flex:1;min-width:0;">${s.name}</div>
+            ${statusBadge}
+          </div>
+          <div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:5px;">
+            <span class="time-badge ${rec.timeIn?'in':''}" style="${rec.timeIn?'':'background:#f3f4f6;color:var(--muted);'}">🟢 ${rec.timeIn||'--:--'}</span>
+            <span class="time-badge ${rec.timeOut?'out':''}" style="${rec.timeOut?'':'background:#f3f4f6;color:var(--muted);'}">🔴 ${rec.timeOut||'--:--'}</span>
             ${rec.car?`<span class="time-badge" style="background:#eff6ff;color:#1a4fa0;">🚗 ${rec.car}</span>`:''}
             ${rec.plate?`<span class="time-badge" style="background:#f0fdf4;color:#16a34a;">🔢 ${rec.plate}</span>`:''}
           </div>
@@ -368,17 +397,52 @@ function updateSummary() {
   document.getElementById('badge-inside').textContent = speakers.inside.length;
 }
 
+// คำนวณสถานะตามเวลาจริง
+function getSmartStatus(rec) {
+  const now = new Date();
+  const nowMins = now.getHours() * 60 + now.getMinutes();
+
+  function toMins(t) {
+    if (!t) return null;
+    const [h,m] = t.split(':').map(Number);
+    return h * 60 + m;
+  }
+
+  const inMins = toMins(rec.timeIn);
+  const outMins = toMins(rec.timeOut);
+
+  if (!inMins) return { text: 'รอ', color: 'var(--accent)', bg: '#fef9ec', icon: '🟡', done: false };
+
+  if (outMins !== null) {
+    const diff = outMins - nowMins;
+    if (diff <= 0) {
+      // ถึงเวลาออกแล้ว = กลับแล้ว
+      return { text: 'กลับแล้ว', color: '#dc2626', bg: '#fee2e2', icon: '🔴', done: true };
+    } else {
+      // นับถอยหลัง
+      const h = Math.floor(diff / 60);
+      const m = diff % 60;
+      const countdown = h > 0 ? `${h}ชม. ${m}น.` : `${m} นาที`;
+      return { text: `ออกใน ${countdown}`, color: '#d97706', bg: '#fffbeb', icon: '⏳', done: false };
+    }
+  }
+
+  return { text: 'เข้าแล้ว', color: 'var(--success)', bg: '#dcfce7', icon: '🟢', done: false };
+}
+
 function renderTable() {
   const list = speakers[currentType2];
   const rows = list.map(s => {
     const rec = records[`${currentType2}-${s.index}`]||{};
-    const pill = rec.timeOut ? `<span class="status-pill out">กลับแล้ว</span>`
-      : rec.timeIn ? `<span class="status-pill in">เข้าแล้ว</span>`
-      : `<span class="status-pill none">รอ</span>`;
+    const st = getSmartStatus(rec);
+    const pill = `<span class="status-pill" style="background:${st.bg};color:${st.color};">${st.icon} ${st.text}</span>`;
     return `<tr><td>${s.num}</td><td>${s.name}</td><td>${s.hotel||'-'}</td><td>${rec.timeIn||'-'}</td><td>${rec.timeOut||'-'}</td><td>${pill}</td></tr>`;
   }).join('');
   document.getElementById('tableBody').innerHTML = rows || `<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--muted)">ไม่มีข้อมูล</td></tr>`;
 }
+
+// อัพเดต status ทุก 1 นาที
+setInterval(() => { renderTable(); renderList(); }, 60000);
 
 function openModal(type, idx, editMode=false) {
   const s = speakers[type][idx];
@@ -391,8 +455,9 @@ function openModal(type, idx, editMode=false) {
   const py = 50 + (transform.y||0);
   const scale = transform.scale||1;
 
-  const statusColor = hasOut ? 'var(--muted)' : hasIn ? 'var(--success)' : 'var(--accent)';
-  const statusText = hasOut ? '⚫ กลับแล้ว' : hasIn ? '🟢 เข้าแล้ว' : '🟡 รอ';
+  const statusSt = getSmartStatus(rec);
+  const statusColor = statusSt.color;
+  const statusText = `${statusSt.icon} ${statusSt.text}`;
 
   if (!editMode) {
     // ===== โหมดดู =====
@@ -945,6 +1010,7 @@ window.renderList = renderList;
 window.renderTable = renderTable;
 window.updateSummary = updateSummary;
 window.updateDateFilter = updateDateFilter;
+window.getSmartStatus = getSmartStatus;
 
 // ===== FIREBASE SYNC =====
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
