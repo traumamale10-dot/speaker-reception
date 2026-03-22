@@ -498,29 +498,31 @@ function initPhotoInteraction(key, type, idx) {
     img.style.transform = `translate(${st.x}px,${st.y}px) scale(${st.scale})`;
   }
 
-  // Touch events (mobile)
-  img.addEventListener('touchstart', e => {
-    e.preventDefault();
+  // Touch events on FRAME (not img) so scroll outside frame still works
+  frame.addEventListener('touchstart', e => {
     if (e.touches.length === 1) {
       st.dragging = true;
       st.startX = e.touches[0].clientX - st.x;
       st.startY = e.touches[0].clientY - st.y;
+      st.startClientY = e.touches[0].clientY;
     } else if (e.touches.length === 2) {
       st.dragging = false;
       st.lastDist = Math.hypot(
         e.touches[0].clientX - e.touches[1].clientX,
         e.touches[0].clientY - e.touches[1].clientY
       );
+      e.preventDefault();
     }
-  }, {passive:false});
+  }, {passive:true});
 
-  img.addEventListener('touchmove', e => {
-    e.preventDefault();
+  frame.addEventListener('touchmove', e => {
     if (e.touches.length === 1 && st.dragging) {
+      e.preventDefault(); // block scroll only when dragging photo
       st.x = e.touches[0].clientX - st.startX;
       st.y = e.touches[0].clientY - st.startY;
       applyTransform();
     } else if (e.touches.length === 2) {
+      e.preventDefault();
       const dist = Math.hypot(
         e.touches[0].clientX - e.touches[1].clientX,
         e.touches[0].clientY - e.touches[1].clientY
@@ -532,7 +534,7 @@ function initPhotoInteraction(key, type, idx) {
     }
   }, {passive:false});
 
-  img.addEventListener('touchend', () => { st.dragging = false; });
+  frame.addEventListener('touchend', () => { st.dragging = false; });
 
   // Mouse events (desktop)
   img.addEventListener('mousedown', e => {
@@ -607,6 +609,15 @@ function updateCard(type, idx) {
   renderList(); renderTable(); updateSummary();
 }
 
+// ===== SERVICE WORKER =====
+let swReg = null;
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js').then(reg => {
+    swReg = reg;
+    console.log('SW registered');
+  }).catch(e => console.log('SW error:', e));
+}
+
 // Alarm system
 let alarmTimers = {};
 
@@ -616,28 +627,39 @@ function setAlarm(type, idx) {
   if(!t) { showToast('⚠️ กรุณาเลือกเวลาก่อน'); return; }
 
   // Request notification permission
-  if ('Notification' in window && Notification.permission === 'default') {
-    Notification.requestPermission();
+  if ('Notification' in window && Notification.permission !== 'granted') {
+    Notification.requestPermission().then(p => {
+      if (p === 'granted') doSetAlarm(type, idx, key, t);
+      else showToast('⚠️ กรุณาอนุญาตการแจ้งเตือนก่อน');
+    });
+    return;
   }
+  doSetAlarm(type, idx, key, t);
+}
 
+function doSetAlarm(type, idx, key, t) {
   if(!records[key]) records[key]={};
   records[key].alarm = t;
   saveRec();
 
-  // Clear existing timer
+  // Clear existing
   if(alarmTimers[key]) clearTimeout(alarmTimers[key]);
 
-  // Calculate ms until alarm
   const now_ = new Date();
   const [h,m] = t.split(':').map(Number);
   const alarm = new Date(now_.getFullYear(), now_.getMonth(), now_.getDate(), h, m, 0);
   let ms = alarm - now_;
-  if(ms < 0) ms += 86400000; // next day
+  if(ms < 0) ms += 86400000;
 
   const name = speakers[type][idx]?.name || '';
-  alarmTimers[key] = setTimeout(() => {
-    triggerAlarm(name, t, key);
-  }, ms);
+
+  // ส่งไปให้ Service Worker จัดการ (ทำงานแม้ปิดแอป)
+  if (swReg && swReg.active) {
+    swReg.active.postMessage({ type:'SET_ALARM', key, name, time:t, ms });
+  }
+
+  // Fallback: timer ใน tab นี้ด้วย
+  alarmTimers[key] = setTimeout(() => triggerAlarm(name, t, key), ms);
 
   const mins = Math.round(ms/60000);
   showToast(`🔔 ตั้งเตือน ${t} (อีก ${mins} นาที)`);
@@ -647,6 +669,8 @@ function setAlarm(type, idx) {
 function clearAlarm(type, idx) {
   const key=`${type}-${idx}`;
   if(alarmTimers[key]) clearTimeout(alarmTimers[key]);
+  // แจ้ง SW ยกเลิกด้วย
+  if (swReg && swReg.active) swReg.active.postMessage({ type:'CLEAR_ALARM', key });
   if(records[key]) delete records[key].alarm;
   saveRec(); showToast('❌ ยกเลิกการแจ้งเตือนแล้ว');
   openModal(type, idx);
