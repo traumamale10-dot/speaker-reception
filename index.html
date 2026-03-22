@@ -381,94 +381,144 @@ function renderTable() {
   document.getElementById('tableBody').innerHTML = rows || `<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--muted)">ไม่มีข้อมูล</td></tr>`;
 }
 
-function openModal(type, idx) {
+function openModal(type, idx, editMode=false) {
   const s = speakers[type][idx];
   const key = `${type}-${idx}`;
   const rec = records[key]||{};
-
   const transform = rec.photoTransform || {x:0,y:0,scale:1};
+  const hasIn = !!rec.timeIn, hasOut = !!rec.timeOut;
 
-  document.getElementById('modalContent').innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:8px;">
-      <div style="font-family:'Kanit',sans-serif;font-size:17px;font-weight:700;flex:1;">${s.name}</div>
-      <a href="https://docs.google.com/spreadsheets/d/${cfg.id}/edit" target="_blank"
-        style="flex-shrink:0;background:#34a853;color:white;font-size:11px;padding:6px 10px;border-radius:20px;text-decoration:none;font-family:'Sarabun',sans-serif;font-weight:600;white-space:nowrap;">
-        📝 แก้ใน Sheets
-      </a>
-    </div>
+  const px = 50 + (transform.x||0);
+  const py = 50 + (transform.y||0);
+  const scale = transform.scale||1;
 
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;">
-      <div>
-        <div style="font-size:11px;color:var(--muted);margin-bottom:4px;font-weight:500;">🏨 โรงแรม</div>
-        <input class="input-field" value="${s.hotel||''}" placeholder="โรงแรม" style="font-size:13px;padding:8px 10px;"
-          onblur="editSpeakerField('${type}',${idx},'hotel',this.value)">
+  const statusColor = hasOut ? 'var(--muted)' : hasIn ? 'var(--success)' : 'var(--accent)';
+  const statusText = hasOut ? '⚫ กลับแล้ว' : hasIn ? '🟢 เข้าแล้ว' : '🟡 รอ';
+
+  if (!editMode) {
+    // ===== โหมดดู =====
+    document.getElementById('modalContent').innerHTML = `
+      <!-- รูปภาพ -->
+      <div style="position:relative;width:100%;height:220px;background:#1e2a3a;border-radius:var(--radius);overflow:hidden;margin-bottom:14px;">
+        ${rec.photo
+          ? `<img src="${rec.photo}" style="width:100%;height:100%;object-fit:cover;object-position:${px}% ${py}%;transform:scale(${scale});transform-origin:center;">`
+          : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,0.2);font-size:70px;">👤</div>`}
+        <div style="position:absolute;bottom:0;left:0;right:0;background:linear-gradient(transparent,rgba(0,0,0,0.7));padding:16px 14px 12px;">
+          <div style="font-family:'Kanit',sans-serif;font-size:18px;font-weight:700;color:white;">${s.name}</div>
+          <div style="font-size:13px;color:rgba(255,255,255,0.8);">🏨 ${s.hotel||'-'} &nbsp;|&nbsp; 📅 ${s.date||''}</div>
+        </div>
       </div>
-      <div>
-        <div style="font-size:11px;color:var(--muted);margin-bottom:4px;font-weight:500;">📅 วันที่</div>
-        <input class="input-field" value="${s.date||''}" placeholder="วันที่" style="font-size:13px;padding:8px 10px;"
-          onblur="editSpeakerField('${type}',${idx},'date',this.value)">
+
+      <!-- สถานะ + ข้อมูลหลัก -->
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px;">
+        <div style="background:var(--bg);border-radius:var(--radius-sm);padding:12px;text-align:center;">
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">สถานะ</div>
+          <div style="font-size:13px;font-weight:700;color:${statusColor};">${statusText}</div>
+        </div>
+        <div style="background:var(--bg);border-radius:var(--radius-sm);padding:12px;text-align:center;">
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">🟢 เข้า</div>
+          <div style="font-size:15px;font-weight:700;color:${hasIn?'var(--success)':'var(--border)'};">${rec.timeIn||'--:--'}</div>
+        </div>
+        <div style="background:var(--bg);border-radius:var(--radius-sm);padding:12px;text-align:center;">
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">🔴 ออก</div>
+          <div style="font-size:15px;font-weight:700;color:${hasOut?'var(--danger)':'var(--border)'};">${rec.timeOut||'--:--'}</div>
+        </div>
       </div>
-    </div>
 
-    <!-- PHOTO CARD -->
-    <div style="position:relative;width:100%;height:260px;background:#1e2a3a;border-radius:var(--radius);overflow:hidden;margin-bottom:10px;" id="photoFrame-${key}">
-      ${rec.photo
-        ? `<img id="photoImg-${key}" src="${rec.photo}" style="width:100%;height:100%;object-fit:cover;object-position:${50 + (transform.x||0)/3}% ${50 + (transform.y||0)/3}%;display:block;cursor:grab;user-select:none;-webkit-user-select:none;transform:scale(${transform.scale||1});transform-origin:center center;" draggable="false">`
-        : `<div style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;color:rgba(255,255,255,0.3);font-size:60px;">👤</div>`}
-      <!-- Zoom controls -->
-      <div style="position:absolute;bottom:10px;right:10px;display:flex;flex-direction:column;gap:6px;">
-        <button onclick="zoomPhoto('${key}',0.15)" style="width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,0.9);border:none;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.3);">+</button>
-        <button onclick="zoomPhoto('${key}',-0.15)" style="width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,0.9);border:none;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.3);">−</button>
-        <button onclick="resetPhotoTransform('${key}','${type}',${idx})" style="width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,0.9);border:none;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.3);">↺</button>
+      <!-- ข้อมูลรถ -->
+      ${rec.car||rec.plate ? `
+      <div style="background:var(--bg);border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:14px;display:flex;gap:16px;">
+        <div><div style="font-size:11px;color:var(--muted);">🚗 รถ</div><div style="font-size:14px;font-weight:500;">${rec.car||'-'}</div></div>
+        <div><div style="font-size:11px;color:var(--muted);">🔢 ทะเบียน</div><div style="font-size:14px;font-weight:500;">${rec.plate||'-'}</div></div>
+      </div>` : ''}
+
+      ${rec.alarm ? `
+      <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:14px;font-size:13px;color:#92400e;">
+        🔔 ตั้งเตือนไว้ที่ <strong>${rec.alarm}</strong>
+      </div>` : ''}
+
+      <!-- ปุ่มแก้ไข -->
+      <button onclick="openModal('${type}',${idx},true)" style="width:100%;padding:14px;background:var(--primary);color:white;border:none;border-radius:var(--radius-sm);font-family:'Sarabun',sans-serif;font-size:15px;font-weight:700;cursor:pointer;margin-bottom:8px;">
+        ✏️ แก้ไข / เพิ่มข้อมูล
+      </button>
+    `;
+  } else {
+    // ===== โหมดแก้ไข =====
+    document.getElementById('modalContent').innerHTML = `
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+        <button onclick="openModal('${type}',${idx},false)" style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:7px 12px;font-size:13px;cursor:pointer;color:var(--muted);">← กลับ</button>
+        <div style="font-family:'Kanit',sans-serif;font-size:16px;font-weight:700;flex:1;">${s.name}</div>
+        <a href="https://docs.google.com/spreadsheets/d/${cfg.id}/edit" target="_blank"
+          style="background:#34a853;color:white;font-size:11px;padding:6px 10px;border-radius:20px;text-decoration:none;font-family:'Sarabun',sans-serif;font-weight:600;white-space:nowrap;">📝 Sheets</a>
       </div>
-      ${rec.photo?`<div style="position:absolute;top:8px;left:8px;background:rgba(0,0,0,0.5);color:white;font-size:11px;padding:3px 8px;border-radius:10px;">👆 ลากเพื่อจัดตำแหน่ง</div>`:''}
-    </div>
 
-    <!-- Upload button -->
-    <div style="display:flex;gap:8px;margin-bottom:14px;">
-      <label onclick="document.getElementById('fi-${key}').click()" style="flex:1;display:block;background:var(--bg);border:2px dashed var(--border);border-radius:var(--radius-sm);padding:10px;font-size:13px;color:var(--muted);cursor:pointer;text-align:center;">📷 ${rec.photo?'เปลี่ยนรูป':'อัพโหลดรูป'}</label>
-      <input type="file" id="fi-${key}" accept="image/*" style="display:none" onchange="handlePhoto(this,'${type}',${idx})">
-      ${rec.photo?`<button onclick="clearPhoto('${type}',${idx})" style="flex-shrink:0;background:#fee2e2;color:var(--danger);border:none;border-radius:var(--radius-sm);padding:10px 14px;font-size:13px;cursor:pointer;">🗑️ ลบรูป</button>`:''}
-      ${rec.photo?`<button onclick="savePhotoTransform('${key}','${type}',${idx})" style="flex:1;background:var(--primary);color:white;border:none;border-radius:var(--radius-sm);font-family:'Sarabun',sans-serif;font-size:13px;font-weight:600;cursor:pointer;">💾 บันทึกตำแหน่ง</button>`:''}
-    </div>
-
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
-      <div>
-        <div style="font-size:12px;color:var(--muted);margin-bottom:5px;font-weight:500;">🟢 เวลาเข้า รพ.</div>
-        <input type="time" id="inp-in-${key}" class="input-field" value="${rec.timeIn||''}"
-          style="font-size:16px;text-align:center;${rec.timeIn?'color:var(--success);border-color:var(--success);font-weight:700;':''}"
-          onchange="saveField('${type}',${idx},'timeIn',this.value);updateCard('${type}',${idx})">
-        <button onclick="setNow('in','${type}',${idx})" style="margin-top:5px;width:100%;padding:7px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);font-family:'Sarabun',sans-serif;font-size:12px;color:var(--muted);cursor:pointer;">⏱ เวลาปัจจุบัน</button>
+      <!-- รูปภาพ -->
+      <div style="position:relative;width:100%;height:220px;background:#1e2a3a;border-radius:var(--radius);overflow:hidden;margin-bottom:8px;" id="photoFrame-${key}">
+        ${rec.photo
+          ? `<img id="photoImg-${key}" src="${rec.photo}" style="width:100%;height:100%;object-fit:cover;object-position:${px}% ${py}%;display:block;cursor:grab;user-select:none;-webkit-user-select:none;transform:scale(${scale});transform-origin:center center;" draggable="false">`
+          : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,0.2);font-size:60px;">👤</div>`}
+        <div style="position:absolute;bottom:8px;right:8px;display:flex;flex-direction:column;gap:5px;">
+          <button onclick="zoomPhoto('${key}',0.15)" style="width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,0.9);border:none;font-size:18px;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.3);">+</button>
+          <button onclick="zoomPhoto('${key}',-0.15)" style="width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,0.9);border:none;font-size:18px;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.3);">−</button>
+          <button onclick="resetPhotoTransform('${key}','${type}',${idx})" style="width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,0.9);border:none;font-size:13px;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.3);">↺</button>
+        </div>
       </div>
-      <div>
-        <div style="font-size:12px;color:var(--muted);margin-bottom:5px;font-weight:500;">🔴 เวลาออก รพ.</div>
-        <input type="time" id="inp-out-${key}" class="input-field" value="${rec.timeOut||''}"
-          style="font-size:16px;text-align:center;${rec.timeOut?'color:var(--danger);border-color:var(--danger);font-weight:700;':''}"
-          onchange="saveField('${type}',${idx},'timeOut',this.value);updateCard('${type}',${idx})">
-        <button onclick="setNow('out','${type}',${idx})" style="margin-top:5px;width:100%;padding:7px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);font-family:'Sarabun',sans-serif;font-size:12px;color:var(--muted);cursor:pointer;">⏱ เวลาปัจจุบัน</button>
+      <div style="display:flex;gap:8px;margin-bottom:14px;">
+        <label onclick="document.getElementById('fi-${key}').click()" style="flex:1;background:var(--bg);border:2px dashed var(--border);border-radius:var(--radius-sm);padding:9px;font-size:13px;color:var(--muted);cursor:pointer;text-align:center;">📷 ${rec.photo?'เปลี่ยนรูป':'อัพโหลดรูป'}</label>
+        <input type="file" id="fi-${key}" accept="image/*" style="display:none" onchange="handlePhoto(this,'${type}',${idx})">
+        ${rec.photo?`<button onclick="savePhotoTransform('${key}','${type}',${idx})" style="flex:1;background:var(--primary);color:white;border:none;border-radius:var(--radius-sm);font-family:'Sarabun',sans-serif;font-size:13px;font-weight:600;cursor:pointer;">💾 บันทึกตำแหน่ง</button>`:''}
       </div>
-    </div>
 
-    <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:var(--radius-sm);padding:12px;margin-bottom:12px;">
-      <div style="font-size:12px;font-weight:600;color:#92400e;margin-bottom:8px;">⏰ ตั้งเตือนรับ/ส่ง</div>
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-        <input type="time" id="alarm-${key}" value="${rec.alarm||''}" class="input-field" style="flex:1;min-width:100px;font-size:15px;">
-        <button onclick="setAlarm('${type}',${idx})" style="padding:9px 14px;background:var(--accent);color:white;border:none;border-radius:var(--radius-sm);font-family:'Sarabun',sans-serif;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;">🔔 ตั้งเตือน</button>
-        ${rec.alarm?`<button onclick="clearAlarm('${type}',${idx})" style="padding:9px 14px;background:var(--bg);color:var(--muted);border:1px solid var(--border);border-radius:var(--radius-sm);font-family:'Sarabun',sans-serif;font-size:12px;cursor:pointer;">❌ ยกเลิก</button>`:''}
+      <!-- โรงแรม/วันที่ -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
+        <div><div style="font-size:11px;color:var(--muted);margin-bottom:4px;">🏨 โรงแรม</div>
+          <input class="input-field" value="${s.hotel||''}" placeholder="โรงแรม" style="font-size:13px;padding:8px 10px;" onblur="editSpeakerField('${type}',${idx},'hotel',this.value)"></div>
+        <div><div style="font-size:11px;color:var(--muted);margin-bottom:4px;">📅 วันที่</div>
+          <input class="input-field" value="${s.date||''}" placeholder="วันที่" style="font-size:13px;padding:8px 10px;" onblur="editSpeakerField('${type}',${idx},'date',this.value)"></div>
       </div>
-      ${rec.alarm?`<div style="margin-top:6px;font-size:12px;color:#92400e;">🔔 ตั้งเตือนไว้ที่ <strong>${rec.alarm}</strong></div>`:''}
-    </div>
 
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
-      <div class="info-item"><label>รถ</label><input class="input-field" value="${rec.car||''}" placeholder="ประเภทรถ" onblur="saveField('${type}',${idx},'car',this.value)"></div>
-      <div class="info-item"><label>ทะเบียน</label><input class="input-field" value="${rec.plate||''}" placeholder="ทะเบียน" onblur="saveField('${type}',${idx},'plate',this.value)"></div>
-    </div>
+      <!-- เวลา -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+        <div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:5px;font-weight:500;">🟢 เวลาเข้า รพ.</div>
+          <input type="time" id="inp-in-${key}" class="input-field" value="${rec.timeIn||''}"
+            style="font-size:16px;text-align:center;${rec.timeIn?'color:var(--success);border-color:var(--success);font-weight:700;':''}"
+            onchange="saveField('${type}',${idx},'timeIn',this.value);updateCard('${type}',${idx})">
+          <button onclick="setNow('in','${type}',${idx})" style="margin-top:5px;width:100%;padding:7px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);font-family:'Sarabun',sans-serif;font-size:12px;color:var(--muted);cursor:pointer;">⏱ เวลาปัจจุบัน</button>
+        </div>
+        <div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:5px;font-weight:500;">🔴 เวลาออก รพ.</div>
+          <input type="time" id="inp-out-${key}" class="input-field" value="${rec.timeOut||''}"
+            style="font-size:16px;text-align:center;${rec.timeOut?'color:var(--danger);border-color:var(--danger);font-weight:700;':''}"
+            onchange="saveField('${type}',${idx},'timeOut',this.value);updateCard('${type}',${idx})">
+          <button onclick="setNow('out','${type}',${idx})" style="margin-top:5px;width:100%;padding:7px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);font-family:'Sarabun',sans-serif;font-size:12px;color:var(--muted);cursor:pointer;">⏱ เวลาปัจจุบัน</button>
+        </div>
+      </div>
 
-    ${rec.timeIn||rec.timeOut?`<div style="text-align:center;"><button class="btn-reset" onclick="resetRec('${type}',${idx})">↩ รีเซ็ตเวลาทั้งหมด</button></div>`:''}
-  `;
+      <!-- แจ้งเตือน -->
+      <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:var(--radius-sm);padding:12px;margin-bottom:12px;">
+        <div style="font-size:12px;font-weight:600;color:#92400e;margin-bottom:8px;">⏰ ตั้งเตือนรับ/ส่ง</div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input type="time" id="alarm-${key}" value="${rec.alarm||''}" class="input-field" style="flex:1;font-size:15px;">
+          <button onclick="setAlarm('${type}',${idx})" style="padding:9px 14px;background:var(--accent);color:white;border:none;border-radius:var(--radius-sm);font-family:'Sarabun',sans-serif;font-size:13px;font-weight:600;cursor:pointer;">🔔 ตั้งเตือน</button>
+          ${rec.alarm?`<button onclick="clearAlarm('${type}',${idx})" style="padding:9px 14px;background:var(--bg);color:var(--muted);border:1px solid var(--border);border-radius:var(--radius-sm);font-family:'Sarabun',sans-serif;font-size:12px;cursor:pointer;">❌</button>`:''}
+        </div>
+        ${rec.alarm?`<div style="margin-top:6px;font-size:12px;color:#92400e;">🔔 ตั้งเตือนไว้ที่ <strong>${rec.alarm}</strong></div>`:''}
+      </div>
+
+      <!-- รถ/ทะเบียน -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+        <div class="info-item"><label>รถ</label><input class="input-field" value="${rec.car||''}" placeholder="ประเภทรถ" onblur="saveField('${type}',${idx},'car',this.value)"></div>
+        <div class="info-item"><label>ทะเบียน</label><input class="input-field" value="${rec.plate||''}" placeholder="ทะเบียน" onblur="saveField('${type}',${idx},'plate',this.value)"></div>
+      </div>
+
+      ${rec.timeIn||rec.timeOut?`<div style="text-align:center;"><button class="btn-reset" onclick="resetRec('${type}',${idx})">↩ รีเซ็ตเวลาทั้งหมด</button></div>`:''}
+    `;
+    setTimeout(() => initPhotoInteraction(key, type, idx), 50);
+  }
+
   document.getElementById('backdrop').style.display='block';
   document.getElementById('modal').style.display='block';
-  setTimeout(() => initPhotoInteraction(key, type, idx), 50);
 }
 
 // ===== PHOTO PAN & ZOOM =====
