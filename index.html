@@ -243,7 +243,7 @@ tbody td { padding:9px 8px; }
   <div id="modalContent"></div>
 </div>
 
-<script>
+<script type="module">
 let speakers = { outside: [], inside: [] };
 let records = {};
 let currentType = 'outside';
@@ -428,6 +428,7 @@ function openModal(type, idx) {
     <div style="display:flex;gap:8px;margin-bottom:14px;">
       <label onclick="document.getElementById('fi-${key}').click()" style="flex:1;display:block;background:var(--bg);border:2px dashed var(--border);border-radius:var(--radius-sm);padding:10px;font-size:13px;color:var(--muted);cursor:pointer;text-align:center;">📷 ${rec.photo?'เปลี่ยนรูป':'อัพโหลดรูป'}</label>
       <input type="file" id="fi-${key}" accept="image/*" style="display:none" onchange="handlePhoto(this,'${type}',${idx})">
+      ${rec.photo?`<button onclick="clearPhoto('${type}',${idx})" style="flex-shrink:0;background:#fee2e2;color:var(--danger);border:none;border-radius:var(--radius-sm);padding:10px 14px;font-size:13px;cursor:pointer;">🗑️ ลบรูป</button>`:''}
       ${rec.photo?`<button onclick="savePhotoTransform('${key}','${type}',${idx})" style="flex:1;background:var(--primary);color:white;border:none;border-radius:var(--radius-sm);font-family:'Sarabun',sans-serif;font-size:13px;font-weight:600;cursor:pointer;">💾 บันทึกตำแหน่ง</button>`:''}
     </div>
 
@@ -752,20 +753,44 @@ function saveField(type,idx,field,val) {
   records[key][field]=val; saveRec();
 }
 
+function clearPhoto(type, idx) {
+  if (!confirm('ลบรูปภาพนี้ใช่ไหม?')) return;
+  const key = `${type}-${idx}`;
+  if (records[key]) {
+    delete records[key].photo;
+    delete records[key].photoTransform;
+    if (photoState[key]) delete photoState[key];
+  }
+  saveRec(); openModal(type, idx); renderList();
+  showToast('🗑️ ลบรูปแล้ว');
+}
+
 function handlePhoto(input,type,idx) {
   const file=input.files[0]; if(!file) return;
   const reader=new FileReader();
-  reader.onload=e=>{
+  reader.onload=async e=>{
     const key=`${type}-${idx}`;
     if(!records[key]) records[key]={};
     records[key].photo=e.target.result;
-    saveRec(); openModal(type,idx); renderList();
-    showToast('📷 บันทึกรูปแล้ว');
+    localStorage.setItem('spkRec',JSON.stringify(records));
+    openModal(type,idx); renderList();
+    // sync รูปขึ้น Firebase (บีบอัดแล้ว)
+    syncPhoto(key, e.target.result);
   };
   reader.readAsDataURL(file);
 }
 
-function saveRec() { localStorage.setItem('spkRec',JSON.stringify(records)); }
+function saveRec() {
+  localStorage.setItem('spkRec', JSON.stringify(records));
+  // Sync to Firebase (ไม่รวมรูป เพราะรูปใหญ่เกินไป)
+  if (window.fbDb) {
+    const light = {};
+    Object.entries(records).forEach(([k,v]) => {
+      light[k] = { timeIn: v.timeIn||'', timeOut: v.timeOut||'', car: v.car||'', plate: v.plate||'', alarm: v.alarm||'' };
+    });
+    window.fbSet(window.fbRef(window.fbDb, 'records'), light).catch(()=>{});
+  }
+}
 
 function showPage(name) {
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
@@ -811,6 +836,111 @@ function showToast(msg) {
   t.textContent=msg; t.classList.add('show');
   setTimeout(()=>t.classList.remove('show'),2500);
 }
+
+// Expose functions globally for onclick handlers
+window.clearPhoto = clearPhoto;
+window.switchType = switchType;
+window.switchType2 = switchType2;
+window.showPage = showPage;
+window.openModal = openModal;
+window.closeModal = closeModal;
+window.setNow = setNow;
+window.setAlarm = setAlarm;
+window.clearAlarm = clearAlarm;
+window.saveField = saveField;
+window.editSpeakerField = editSpeakerField;
+window.handlePhoto = handlePhoto;
+window.savePhotoTransform = savePhotoTransform;
+window.zoomPhoto = zoomPhoto;
+window.resetPhotoTransform = resetPhotoTransform;
+window.resetRec = resetRec;
+window.saveSettings = saveSettings;
+window.confirmClear = confirmClear;
+
+// ===== FIREBASE SYNC =====
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+import { getDatabase, ref, set, onValue } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
+
+const firebaseConfig = {
+  apiKey: "AIzaSyD4VUDMZ96VBJvKK9S0FEhy7ut3NMKv04Y",
+  authDomain: "speaker-reception-m.firebaseapp.com",
+  databaseURL: "https://speaker-reception-m-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "speaker-reception-m",
+  storageBucket: "speaker-reception-m.firebasestorage.app",
+  messagingSenderId: "997948352842",
+  appId: "1:997948352842:web:0232524429d668f18eb9b3"
+};
+
+const fbApp = initializeApp(firebaseConfig);
+const fbDb = getDatabase(fbApp);
+window.fbDb = fbDb;
+window.fbRef = ref;
+window.fbSet = set;
+
+// บีบอัดรูปให้เล็กก่อน sync (max 400px, quality 0.5 → ~30-50KB)
+function compressImage(dataUrl, maxW=400, quality=0.5) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const ratio = Math.min(1, maxW / Math.max(img.width, img.height));
+      canvas.width = img.width * ratio;
+      canvas.height = img.height * ratio;
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.src = dataUrl;
+  });
+}
+
+// Sync รูปขึ้น Firebase
+async function syncPhoto(key, dataUrl) {
+  try {
+    showToast('⏳ กำลังซิงค์รูป...');
+    const compressed = await compressImage(dataUrl);
+    await set(ref(fbDb, `photos/${key}`), compressed);
+    showToast('📷 ซิงค์รูปสำเร็จ');
+  } catch(e) {
+    console.error(e);
+    showToast('⚠️ ซิงค์รูปไม่สำเร็จ');
+  }
+}
+
+// Listen records
+onValue(ref(fbDb, 'records'), (snapshot) => {
+  const data = snapshot.val();
+  if (!data) return;
+  let changed = false;
+  Object.entries(data).forEach(([k, v]) => {
+    if (!records[k]) records[k] = {};
+    ['timeIn','timeOut','car','plate','alarm'].forEach(f => {
+      if (v[f] !== undefined && records[k][f] !== v[f]) { records[k][f] = v[f]; changed = true; }
+    });
+  });
+  if (changed) {
+    localStorage.setItem('spkRec', JSON.stringify(records));
+    renderList(); renderTable(); updateSummary();
+  }
+});
+
+// Listen photos
+onValue(ref(fbDb, 'photos'), (snapshot) => {
+  const data = snapshot.val();
+  if (!data) return;
+  let changed = false;
+  Object.entries(data).forEach(([k, photoData]) => {
+    if (!records[k]) records[k] = {};
+    if (records[k].photo !== photoData) {
+      records[k].photo = photoData;
+      changed = true;
+    }
+  });
+  if (changed) {
+    localStorage.setItem('spkRec', JSON.stringify(records));
+    renderList(); renderTable();
+    showToast('🖼️ ซิงค์รูปภาพแล้ว');
+  }
+});
 
 init();
 </script>
