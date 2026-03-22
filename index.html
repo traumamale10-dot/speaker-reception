@@ -135,7 +135,7 @@ tbody td { padding:9px 8px; }
 <body>
 
 <div class="header">
-  <div class="header-icon"></div>
+  <div class="header-icon">🎤</div>
   <h1>แผนกต้อนรับวิทยากร</h1>
   <div class="header-sub">Speaker Reception System</div>
   <div class="header-date" id="headerDate"></div>
@@ -202,7 +202,7 @@ tbody td { padding:9px 8px; }
       <button class="btn-primary" onclick="saveSettings()">💾 บันทึกและโหลดข้อมูล</button>
     </div>
 
-
+   
 
     <div class="settings-card">
       <div class="settings-title">🗑️ จัดการข้อมูล</div>
@@ -295,19 +295,24 @@ async function fetchSheet(name) {
   const res = await fetch(url);
   const text = await res.text();
   const json = JSON.parse(text.substring(47).slice(0,-2));
-  return json.table.rows.filter(r => r.c && r.c[3] && r.c[3].v).map((r,i) => ({
-    index: i,
-    num: r.c[0]?.v || (i+1),
-    date: r.c[1]?.f || r.c[1]?.v || '',
-    name: r.c[3]?.v || '',
-    hotel: r.c[4]?.v || '',
-  }));
+  // FIX 1: เก็บ originalIndex ก่อน filter เพื่อให้ index ตรงกับ records key เสมอ
+  return json.table.rows
+    .map((r, i) => ({ originalIndex: i, r }))
+    .filter(({ r }) => r.c && r.c[3] && r.c[3].v)
+    .map(({ originalIndex, r }, i) => ({
+      index: originalIndex,
+      num: r.c[0]?.v || (i + 1),
+      date: r.c[1]?.f || r.c[1]?.v || '',
+      name: r.c[3]?.v || '',
+      hotel: r.c[4]?.v || '',
+    }));
 }
 
 function renderList() {
   const list = speakers[currentType];
   const q = document.getElementById('searchInput').value.trim().toLowerCase();
-  const filtered = list.filter(s => s.name.toLowerCase().includes(q));
+  // FIX 2: trim() ชื่อก่อนค้นหา เพื่อกันช่องว่างนำหน้า/ท้าย
+  const filtered = list.filter(s => s.name.trim().toLowerCase().includes(q));
   updateSummary();
   if (!filtered.length) {
     document.getElementById('listContent').innerHTML = `<div class="empty"><div class="empty-icon">🔍</div>ไม่พบวิทยากร</div>`;
@@ -372,7 +377,8 @@ function renderTable() {
 }
 
 function openModal(type, idx, editMode=false) {
-  const s = speakers[type][idx];
+  const s = speakers[type].find(x => x.index === idx);
+  if (!s) return;
   const key = `${type}-${idx}`;
   const rec = records[key]||{};
   const transform = rec.photoTransform || {x:0,y:0,scale:1};
@@ -693,7 +699,7 @@ function doSetAlarm(type, idx, key, t) {
   let ms = alarm - now_;
   if(ms < 0) ms += 86400000;
 
-  const name = speakers[type][idx]?.name || '';
+  const name = speakers[type].find(x => x.index === idx)?.name || '';
 
   // ส่งไปให้ Service Worker จัดการ (ทำงานแม้ปิดแอป)
   if (swReg && swReg.active) {
@@ -770,7 +776,7 @@ function restoreAlarms() {
     const alarm = new Date(now_.getFullYear(), now_.getMonth(), now_.getDate(), h, m, 0);
     let ms = alarm - now_;
     if(ms < 0) return; // already passed
-    const name = speakers[type]?.[parseInt(idx)]?.name || '';
+    const name = speakers[type]?.find(x => x.index === parseInt(idx))?.name || '';
     alarmTimers[key] = setTimeout(() => triggerAlarm(name, rec.alarm, key), ms);
   });
 }
@@ -784,8 +790,9 @@ function resetRec(type,idx) {
 }
 
 function editSpeakerField(type, idx, field, value) {
-  if (!speakers[type][idx]) return;
-  speakers[type][idx][field] = value;
+  const s = speakers[type].find(x => x.index === idx);
+  if (!s) return;
+  s[field] = value;
   localStorage.setItem('spkData', JSON.stringify(speakers));
   renderList(); renderTable();
   showToast(`✏️ บันทึก${field==='hotel'?'โรงแรม':'วันที่'}แล้ว`);
