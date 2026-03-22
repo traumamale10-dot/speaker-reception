@@ -56,25 +56,25 @@ body { font-family: 'Sarabun', sans-serif; background: var(--bg); color: var(--t
 .search-input:focus { border-color:var(--primary); }
 
 .speaker-list { display:flex; flex-direction:column; gap:12px; }
-.speaker-card { background:white; border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden; border-left:4px solid var(--border); }
+.speaker-card { background:white; border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden; border-left:5px solid var(--border); }
 .speaker-card.status-in { border-left-color:var(--success); }
 .speaker-card.status-out { border-left-color:var(--muted); }
-.card-main { display:flex; align-items:center; padding:14px; gap:12px; cursor:pointer; }
+.card-main { display:flex; align-items:center; padding:16px 14px; gap:14px; cursor:pointer; }
 .avatar-wrap { position:relative; flex-shrink:0; }
-.avatar { width:58px; height:58px; border-radius:50%; object-fit:cover; border:3px solid var(--border); }
-.avatar-placeholder { width:58px; height:58px; border-radius:50%; background:linear-gradient(135deg,#c7d5ee,#a0b8dc); display:flex; align-items:center; justify-content:center; font-size:22px; border:3px solid var(--border); flex-shrink:0; }
-.status-dot { position:absolute; bottom:2px; right:2px; width:14px; height:14px; border-radius:50%; border:2px solid white; background:var(--border); }
+.avatar { width:80px; height:80px; border-radius:50%; object-fit:cover; border:3px solid var(--border); }
+.avatar-placeholder { width:80px; height:80px; border-radius:50%; background:linear-gradient(135deg,#c7d5ee,#a0b8dc); display:flex; align-items:center; justify-content:center; font-size:32px; border:3px solid var(--border); flex-shrink:0; }
+.status-dot { position:absolute; bottom:3px; right:3px; width:18px; height:18px; border-radius:50%; border:3px solid white; background:var(--border); }
 .status-dot.in { background:var(--success); }
 .status-dot.out { background:var(--muted); }
 .card-info { flex:1; min-width:0; }
-.card-name { font-family:'Kanit',sans-serif; font-size:15px; font-weight:600; line-height:1.3; }
-.card-hotel { font-size:12px; color:var(--muted); margin-top:2px; }
-.card-date { font-size:11px; color:var(--muted); margin-top:1px; }
-.card-times { display:flex; gap:6px; margin-top:6px; flex-wrap:wrap; }
-.time-badge { font-size:11px; padding:2px 9px; border-radius:20px; font-weight:500; }
+.card-name { font-family:'Kanit',sans-serif; font-size:17px; font-weight:700; line-height:1.3; }
+.card-hotel { font-size:14px; color:var(--muted); margin-top:3px; }
+.card-date { font-size:13px; color:var(--muted); margin-top:2px; }
+.card-times { display:flex; gap:6px; margin-top:8px; flex-wrap:wrap; }
+.time-badge { font-size:12px; padding:4px 11px; border-radius:20px; font-weight:600; }
 .time-badge.in { background:#dcfce7; color:var(--success); }
 .time-badge.out { background:#f3f4f6; color:var(--muted); }
-.card-arrow { font-size:20px; color:var(--border); flex-shrink:0; }
+.card-arrow { font-size:24px; color:var(--border); flex-shrink:0; }
 
 .info-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px; }
 .info-item { background:var(--bg); border-radius:var(--radius-sm); padding:10px 12px; }
@@ -330,7 +330,7 @@ function renderList() {
     const photo = rec.photo
       ? (() => {
           const t = rec.photoTransform || {x:0,y:0,scale:1};
-          return `<div style="width:58px;height:58px;border-radius:50%;border:3px solid var(--border);overflow:hidden;flex-shrink:0;background:#1e2a3a;position:relative;">
+          return `<div style="width:80px;height:80px;border-radius:50%;border:3px solid var(--border);overflow:hidden;flex-shrink:0;background:#1e2a3a;position:relative;">
             <img src="${rec.photo}" style="position:absolute;top:50%;left:50%;width:100%;height:100%;object-fit:cover;transform:translate(calc(-50% + ${t.x*0.5}px),calc(-50% + ${t.y*0.5}px)) scale(${t.scale});" draggable="false">
           </div>`;
         })()
@@ -474,12 +474,27 @@ let photoState = {}; // per key: {x, y, scale, startX, startY, lastDist}
 function initPhotoInteraction(key, type, idx) {
   const img = document.getElementById(`photoImg-${key}`);
   if (!img) return;
+  const frame = document.getElementById(`photoFrame-${key}`);
   const rec = records[key] || {};
   const t = rec.photoTransform || {x:0, y:0, scale:1};
   if (!photoState[key]) photoState[key] = {x:t.x, y:t.y, scale:t.scale, dragging:false, lastDist:0};
   const st = photoState[key];
 
+  function clamp() {
+    const fw = frame.offsetWidth;
+    const fh = frame.offsetHeight;
+    // รูปขนาด 100% ของกรอบ scale ตาม st.scale
+    const iw = fw * st.scale;
+    const ih = fh * st.scale;
+    // ขอบเขตที่เลื่อนได้ (ครึ่งนึงที่ยื่นออก)
+    const maxX = Math.max(0, (iw - fw) / 2);
+    const maxY = Math.max(0, (ih - fh) / 2);
+    st.x = Math.max(-maxX, Math.min(maxX, st.x));
+    st.y = Math.max(-maxY, Math.min(maxY, st.y));
+  }
+
   function applyTransform() {
+    clamp();
     img.style.transform = `translate(${st.x}px,${st.y}px) scale(${st.scale})`;
   }
 
@@ -511,7 +526,7 @@ function initPhotoInteraction(key, type, idx) {
         e.touches[0].clientY - e.touches[1].clientY
       );
       const ratio = dist / st.lastDist;
-      st.scale = Math.max(0.3, Math.min(5, st.scale * ratio));
+      st.scale = Math.max(1, Math.min(5, st.scale * ratio));
       st.lastDist = dist;
       applyTransform();
     }
@@ -538,9 +553,17 @@ function initPhotoInteraction(key, type, idx) {
 function zoomPhoto(key, delta) {
   if (!photoState[key]) photoState[key] = {x:0,y:0,scale:1,dragging:false};
   const st = photoState[key];
-  st.scale = Math.max(0.3, Math.min(5, st.scale + delta));
+  st.scale = Math.max(1, Math.min(5, st.scale + delta));
+  const frame = document.getElementById(`photoFrame-${key}`);
   const img = document.getElementById(`photoImg-${key}`);
-  if (img) img.style.transform = `translate(${st.x}px,${st.y}px) scale(${st.scale})`;
+  if (!img || !frame) return;
+  // clamp position after zoom
+  const fw = frame.offsetWidth, fh = frame.offsetHeight;
+  const maxX = Math.max(0, (fw * st.scale - fw) / 2);
+  const maxY = Math.max(0, (fh * st.scale - fh) / 2);
+  st.x = Math.max(-maxX, Math.min(maxX, st.x));
+  st.y = Math.max(-maxY, Math.min(maxY, st.y));
+  img.style.transform = `translate(${st.x}px,${st.y}px) scale(${st.scale})`;
 }
 
 function resetPhotoTransform(key, type, idx) {
