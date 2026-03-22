@@ -455,12 +455,15 @@ function renderList() {
             <div class="card-name" style="flex:1;min-width:0;">${s.name}</div>
             ${statusBadge}
           </div>
-          <div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:5px;">
-            <span class="time-badge ${rec.timeIn?'in':''}" style="${rec.timeIn?'':'background:#f3f4f6;color:var(--muted);'}">🟢 ${rec.timeIn||'--:--'}</span>
-            <span class="time-badge ${rec.timeOut?'out':''}" style="${rec.timeOut?'':'background:#f3f4f6;color:var(--muted);'}">🔴 ${rec.timeOut||'--:--'}</span>
+          <div style="margin-top:6px;display:flex;gap:6px;align-items:center;">
+            <span style="font-size:12px;font-weight:600;color:${rec.timeIn?'var(--success)':'var(--border)'};">เข้า ${rec.timeIn||'--:--'}</span>
+            <span style="color:var(--border);font-size:12px;">|</span>
+            <span style="font-size:12px;font-weight:600;color:${rec.timeOut?'var(--danger)':'var(--border)'};">ออก ${rec.timeOut||'--:--'}</span>
+          </div>
+          ${rec.car||rec.plate ? `<div style="margin-top:4px;display:flex;gap:5px;">
             ${rec.car?`<span class="time-badge" style="background:#eff6ff;color:#1a4fa0;">🚗 ${rec.car}</span>`:''}
             ${rec.plate?`<span class="time-badge" style="background:#f0fdf4;color:#16a34a;">🔢 ${rec.plate}</span>`:''}
-          </div>
+          </div>` : ''}
         </div>
         <div class="card-arrow">›</div>
       </div>
