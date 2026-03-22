@@ -151,9 +151,18 @@ tbody td { padding:9px 8px; }
       <button class="tab-btn" onclick="switchType('inside')" id="tab-inside">🏥 วิทยากรภายใน <span class="badge" id="badge-inside">0</span></button>
     </div>
     <div class="summary-row">
-      <div class="sum-card c-all"><div class="sum-num" id="sum-total">0</div><div class="sum-lbl">ทั้งหมด</div></div>
-      <div class="sum-card c-in"><div class="sum-num" id="sum-in">0</div><div class="sum-lbl">เข้าแล้ว</div></div>
-      <div class="sum-card c-out"><div class="sum-num" id="sum-out">0</div><div class="sum-lbl">กลับแล้ว</div></div>
+      <div class="sum-card c-all" onclick="filterStatus('')" id="sum-card-all" style="cursor:pointer;">
+        <div class="sum-num" id="sum-total">0</div>
+        <div class="sum-lbl">ทั้งหมด</div>
+      </div>
+      <div class="sum-card c-in" onclick="filterStatus('in')" id="sum-card-in" style="cursor:pointer;">
+        <div class="sum-num" id="sum-in">0</div>
+        <div class="sum-lbl">🟢 เข้าแล้ว</div>
+      </div>
+      <div class="sum-card c-out" onclick="filterStatus('out')" id="sum-card-out" style="cursor:pointer;">
+        <div class="sum-num" id="sum-out">0</div>
+        <div class="sum-lbl">⚫ กลับแล้ว</div>
+      </div>
     </div>
     <div class="search-wrap">
       <span>🔍</span>
@@ -239,6 +248,10 @@ function init() {
     loadFromSheets();
     showToast('🔄 รีโหลดอัตโนมัติ');
   }, 5 * 60 * 1000);
+  // อัพเดตสถานะทุก 1 นาที (เพราะเปรียบเทียบกับเวลาปัจจุบัน)
+  setInterval(() => {
+    renderList(); renderTable();
+  }, 60 * 1000);
 }
 
 function setDate() {
@@ -288,11 +301,49 @@ async function fetchSheet(name) {
     date:    r.c[1]?.f || r.c[1]?.v || '',
     name:    r.c[3]?.v || '',
     hotel:   r.c[4]?.v || '',
-    timeIn:  r.c[5]?.v || '',   // คอลัมน์ F
-    timeOut: r.c[6]?.v || '',   // คอลัมน์ G
-    car:     r.c[7]?.v || '',   // คอลัมน์ H
-    plate:   r.c[8]?.v || '',   // คอลัมน์ I
+    timeIn:  parseSheetTime(r.c[5]),
+    timeOut: parseSheetTime(r.c[6]),
+    car:     r.c[7]?.v || '',
+    plate:   r.c[8]?.v || '',
   }));
+}
+
+// แปลงค่าเวลาจาก Google Sheets ให้เป็น HH:MM
+function parseSheetTime(cell) {
+  if (!cell) return '';
+
+  // ลอง formatted value ก่อน เช่น "9:00:00" หรือ "09:00"
+  if (cell.f) {
+    const m = cell.f.toString().match(/^(\d{1,2}):(\d{2})/);
+    if (m) return `${String(m[1]).padStart(2,'0')}:${m[2]}`;
+  }
+
+  const val = cell.v;
+  if (!val && val !== 0) return '';
+
+  // กรณี string "Date(1899,11,30,9,0,0)"
+  if (typeof val === 'string' && val.startsWith('Date(')) {
+    const parts = val.replace('Date(','').replace(')','').split(',').map(Number);
+    const h = String(parts[3]||0).padStart(2,'0');
+    const m = String(parts[4]||0).padStart(2,'0');
+    return `${h}:${m}`;
+  }
+
+  // กรณี string HH:MM หรือ HH:MM:SS
+  if (typeof val === 'string' && val.includes(':')) {
+    const m = val.match(/^(\d{1,2}):(\d{2})/);
+    if (m) return `${String(m[1]).padStart(2,'0')}:${m[2]}`;
+  }
+
+  // กรณี number (fraction of day เช่น 0.375 = 09:00)
+  if (typeof val === 'number' && val >= 0 && val < 1) {
+    const totalMins = Math.round(val * 24 * 60);
+    const h = String(Math.floor(totalMins / 60) % 24).padStart(2,'0');
+    const m = String(totalMins % 60).padStart(2,'0');
+    return `${h}:${m}`;
+  }
+
+  return '';
 }
 
 // นำข้อมูลจาก Sheets มา merge เข้า records
@@ -331,10 +382,17 @@ function renderList() {
   const list = speakers[currentType];
   const q = document.getElementById('searchInput')?.value.trim().toLowerCase() || '';
   const dateF = document.getElementById('dateFilter')?.value || '';
-  const filtered = list.filter(s =>
-    s.name.toLowerCase().includes(q) &&
-    (!dateF || s.date === dateF)
-  );
+  const filtered = list.filter(s => {
+    if (!s.name.toLowerCase().includes(q)) return false;
+    if (dateF && s.date !== dateF) return false;
+    if (currentStatusFilter) {
+      const rec = records[`${currentType}-${s.index}`]||{};
+      const st = getSmartStatus(rec);
+      if (currentStatusFilter === 'out' && !st.done) return false;
+      if (currentStatusFilter === 'in' && (st.done || !rec.timeIn)) return false;
+    }
+    return true;
+  });
   updateSummary();
   updateDateFilter();
 
@@ -386,10 +444,32 @@ function renderList() {
   document.getElementById('listContent').innerHTML = `<div class="speaker-list">${html}</div>`;
 }
 
+let currentStatusFilter = ''; // '', 'in', 'out', 'wait'
+
+function filterStatus(s) {
+  currentStatusFilter = currentStatusFilter === s ? '' : s;
+  // highlight ปุ่ม
+  ['all','in','out'].forEach(k => {
+    const el = document.getElementById(`sum-card-${k}`);
+    if (el) el.style.outline = '';
+  });
+  const map = {'':'all','in':'in','out':'out'};
+  const activeKey = map[currentStatusFilter] || 'all';
+  const el = document.getElementById(`sum-card-${activeKey}`);
+  if (el) el.style.outline = '3px solid var(--primary)';
+  renderList();
+}
+
 function updateSummary() {
   const list = speakers[currentType];
-  let inC=0, outC=0;
-  list.forEach((s,i) => { const r=records[`${currentType}-${s.index}`]||{}; if(r.timeIn)inC++; if(r.timeOut)outC++; });
+  let inC=0, outC=0, waitC=0;
+  list.forEach((s,i) => {
+    const r = records[`${currentType}-${s.index}`]||{};
+    const st = getSmartStatus(r);
+    if (st.done) outC++;
+    else if (r.timeIn) inC++;
+    else waitC++;
+  });
   document.getElementById('sum-total').textContent = list.length;
   document.getElementById('sum-in').textContent = inC;
   document.getElementById('sum-out').textContent = outC;
@@ -404,29 +484,32 @@ function getSmartStatus(rec) {
 
   function toMins(t) {
     if (!t) return null;
-    const [h,m] = t.split(':').map(Number);
-    return h * 60 + m;
+    const parts = t.toString().split(':');
+    if (parts.length < 2) return null;
+    return parseInt(parts[0]) * 60 + parseInt(parts[1]);
   }
 
   const inMins = toMins(rec.timeIn);
   const outMins = toMins(rec.timeOut);
 
-  if (!inMins) return { text: 'รอ', color: 'var(--accent)', bg: '#fef9ec', icon: '🟡', done: false };
+  // ไม่มีข้อมูลเลย
+  if (!inMins && !outMins) return { text: 'รอ', color: 'var(--accent)', bg: '#fef9ec', icon: '🟡', done: false };
 
   if (outMins !== null) {
-    const diff = outMins - nowMins;
-    if (diff <= 0) {
-      // ถึงเวลาออกแล้ว = กลับแล้ว
-      return { text: 'กลับแล้ว', color: '#dc2626', bg: '#fee2e2', icon: '🔴', done: true };
+    if (nowMins >= outMins) {
+      // เลยเวลาออกแล้ว = กลับแล้ว
+      return { text: 'กลับแล้ว', color: 'var(--muted)', bg: '#f3f4f6', icon: '⚫', done: true };
     } else {
-      // นับถอยหลัง
+      // ยังไม่ถึงเวลาออก = นับถอยหลัง
+      const diff = outMins - nowMins;
       const h = Math.floor(diff / 60);
       const m = diff % 60;
-      const countdown = h > 0 ? `${h}ชม. ${m}น.` : `${m} นาที`;
+      const countdown = h > 0 ? `${h}ชม. ${m}น.` : `${m} น.`;
       return { text: `ออกใน ${countdown}`, color: '#d97706', bg: '#fffbeb', icon: '⏳', done: false };
     }
   }
 
+  // มีเวลาเข้าแต่ยังไม่มีเวลาออก
   return { text: 'เข้าแล้ว', color: 'var(--success)', bg: '#dcfce7', icon: '🟢', done: false };
 }
 
@@ -1004,12 +1087,14 @@ window.zoomPhoto = zoomPhoto;
 window.resetPhotoTransform = resetPhotoTransform;
 window.resetRec = resetRec;
 window.saveSettings = saveSettings;
+window.loadFromSheets = loadFromSheets;
 window.confirmClear = confirmClear;
 window.clearPhoto = clearPhoto;
 window.renderList = renderList;
 window.renderTable = renderTable;
 window.updateSummary = updateSummary;
 window.updateDateFilter = updateDateFilter;
+window.filterStatus = filterStatus;
 window.getSmartStatus = getSmartStatus;
 
 // ===== FIREBASE SYNC =====
