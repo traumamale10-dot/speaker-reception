@@ -403,9 +403,12 @@ function openModal(type, idx, editMode=false) {
         ${rec.photo
           ? `<img src="${rec.photo}" style="width:100%;height:auto;display:block;max-height:70vh;object-fit:contain;">`
           : `<div style="height:160px;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,0.2);font-size:70px;">👤</div>`}
-        <div style="background:rgba(0,0,0,0.6);padding:12px 14px;">
-          <div style="font-family:'Kanit',sans-serif;font-size:18px;font-weight:700;color:white;">${s.name}</div>
-          <div style="font-size:13px;color:rgba(255,255,255,0.8);">🏨 ${s.hotel||'-'} &nbsp;|&nbsp; 📅 ${s.date||''}</div>
+        <div style="background:rgba(0,0,0,0.6);padding:12px 14px;display:flex;align-items:center;justify-content:space-between;">
+          <div>
+            <div style="font-family:'Kanit',sans-serif;font-size:18px;font-weight:700;color:white;">${s.name}</div>
+            <div style="font-size:13px;color:rgba(255,255,255,0.8);">🏨 ${s.hotel||'-'} &nbsp;|&nbsp; 📅 ${s.date||''}</div>
+          </div>
+          ${rec.photo?`<button onclick="clearPhoto('${type}',${idx})" style="background:rgba(220,38,38,0.8);color:white;border:none;border-radius:var(--radius-sm);padding:7px 12px;font-size:12px;cursor:pointer;flex-shrink:0;">🗑️ ลบรูป</button>`:''}
         </div>
       </div>
 
@@ -466,6 +469,7 @@ function openModal(type, idx, editMode=false) {
       <div style="display:flex;gap:8px;margin-bottom:14px;">
         <label onclick="document.getElementById('fi-${key}').click()" style="flex:1;background:var(--bg);border:2px dashed var(--border);border-radius:var(--radius-sm);padding:9px;font-size:13px;color:var(--muted);cursor:pointer;text-align:center;">📷 ${rec.photo?'เปลี่ยนรูป':'อัพโหลดรูป'}</label>
         <input type="file" id="fi-${key}" accept="image/*" style="display:none" onchange="handlePhoto(this,'${type}',${idx})">
+        ${rec.photo?`<button onclick="clearPhoto('${type}',${idx})" style="flex-shrink:0;background:#fee2e2;color:var(--danger);border:none;border-radius:var(--radius-sm);padding:9px 12px;font-size:13px;cursor:pointer;">🗑️ ลบรูป</button>`:''}
         ${rec.photo?`<button onclick="savePhotoTransform('${key}','${type}',${idx})" style="flex:1;background:var(--primary);color:white;border:none;border-radius:var(--radius-sm);font-family:'Sarabun',sans-serif;font-size:13px;font-weight:600;cursor:pointer;">💾 บันทึกตำแหน่ง</button>`:''}
       </div>
 
