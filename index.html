@@ -181,7 +181,13 @@ tbody td { padding:9px 8px; }
     <div class="settings-card">
       <div class="settings-title">⚙️ เชื่อมต่อ Google Sheets</div>
       <div class="setting-item">
-        <div class="setting-label">Sheet ID</div>
+        <div class="setting-label">🔗 เปิด Google Sheets</div>
+        <div class="setting-desc">เปิดไปแก้ไขข้อมูลต้นฉบับใน Google Sheets</div>
+        <a id="sheetsLink" href="https://docs.google.com/spreadsheets/d/1N2vycHqNPciioHavyXu_Po6PdEbPZw2qsiSmzh-7fRM/edit" target="_blank"
+          style="display:block;margin-top:8px;background:#34a853;color:white;text-align:center;padding:12px;border-radius:var(--radius-sm);font-family:'Sarabun',sans-serif;font-size:14px;font-weight:600;text-decoration:none;">
+          📊 เปิด Google Sheets
+        </a>
+      </div>
         <div class="setting-desc">คัดลอก ID จาก URL ระหว่าง /d/ และ /edit</div>
         <input class="setting-input" type="text" id="sheetId" placeholder="วาง Sheet ID ที่นี่...">
       </div>
@@ -258,6 +264,7 @@ function init() {
   if (d) { speakers = JSON.parse(d); renderList(); renderTable(); updateSummary(); }
 
   loadFromSheets();
+  setTimeout(restoreAlarms, 1500);
 }
 
 function setDate() {
@@ -320,7 +327,14 @@ function renderList() {
     const key = `${currentType}-${s.index}`;
     const rec = records[key] || {};
     const hasIn = !!rec.timeIn, hasOut = !!rec.timeOut;
-    const photo = rec.photo ? `<img class="avatar" src="${rec.photo}">` : `<div class="avatar-placeholder">👤</div>`;
+    const photo = rec.photo
+      ? (() => {
+          const t = rec.photoTransform || {x:0,y:0,scale:1};
+          return `<div style="width:58px;height:58px;border-radius:50%;border:3px solid var(--border);overflow:hidden;flex-shrink:0;background:#1e2a3a;position:relative;">
+            <img src="${rec.photo}" style="position:absolute;top:50%;left:50%;width:100%;height:100%;object-fit:cover;transform:translate(calc(-50% + ${t.x*0.5}px),calc(-50% + ${t.y*0.5}px)) scale(${t.scale});" draggable="false">
+          </div>`;
+        })()
+      : `<div class="avatar-placeholder">👤</div>`;
     const dot = hasOut ? 'out' : hasIn ? 'in' : '';
     const card = hasOut ? 'status-out' : hasIn ? 'status-in' : '';
     return `<div class="speaker-card ${card}">
@@ -369,34 +383,183 @@ function openModal(type, idx) {
   const s = speakers[type][idx];
   const key = `${type}-${idx}`;
   const rec = records[key]||{};
-  const hasIn=!!rec.timeIn, hasOut=!!rec.timeOut;
+
+  const transform = rec.photoTransform || {x:0,y:0,scale:1};
 
   document.getElementById('modalContent').innerHTML = `
-    <div style="text-align:center;margin-bottom:14px;">
-      ${rec.photo
-        ? `<img src="${rec.photo}" style="width:90px;height:90px;border-radius:50%;object-fit:cover;border:4px solid var(--primary);">`
-        : `<div style="width:90px;height:90px;border-radius:50%;background:linear-gradient(135deg,#c7d5ee,#a0b8dc);display:inline-flex;align-items:center;justify-content:center;font-size:38px;border:4px solid var(--border);">👤</div>`}
-      <div style="margin-top:10px;">
-        <label onclick="document.getElementById('fi-${key}').click()" style="display:inline-block;background:var(--bg);border:2px dashed var(--border);border-radius:var(--radius-sm);padding:7px 18px;font-size:12px;color:var(--muted);cursor:pointer;">📷 ${rec.photo?'เปลี่ยนรูป':'อัพโหลดรูป'}</label>
-        <input type="file" id="fi-${key}" accept="image/*" style="display:none" onchange="handlePhoto(this,'${type}',${idx})">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:8px;">
+      <div style="font-family:'Kanit',sans-serif;font-size:17px;font-weight:700;flex:1;">${s.name}</div>
+      <a href="https://docs.google.com/spreadsheets/d/${cfg.id}/edit" target="_blank"
+        style="flex-shrink:0;background:#34a853;color:white;font-size:11px;padding:6px 10px;border-radius:20px;text-decoration:none;font-family:'Sarabun',sans-serif;font-weight:600;white-space:nowrap;">
+        📝 แก้ใน Sheets
+      </a>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;">
+      <div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px;font-weight:500;">🏨 โรงแรม</div>
+        <input class="input-field" value="${s.hotel||''}" placeholder="โรงแรม" style="font-size:13px;padding:8px 10px;"
+          onblur="editSpeakerField('${type}',${idx},'hotel',this.value)">
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px;font-weight:500;">📅 วันที่</div>
+        <input class="input-field" value="${s.date||''}" placeholder="วันที่" style="font-size:13px;padding:8px 10px;"
+          onblur="editSpeakerField('${type}',${idx},'date',this.value)">
       </div>
     </div>
-    <div style="font-family:'Kanit',sans-serif;font-size:18px;font-weight:700;margin-bottom:4px;">${s.name}</div>
-    <div style="font-size:13px;color:var(--muted);margin-bottom:14px;">🏨 ${s.hotel||'-'} &nbsp;|&nbsp; 📅 ${s.date||''}</div>
-    <div class="info-grid">
-      <div class="info-item"><label>เวลาเข้า รพ.</label><span style="color:${hasIn?'var(--success)':'var(--muted)'}">${rec.timeIn||'-'}</span></div>
-      <div class="info-item"><label>เวลาออก รพ.</label><span style="color:${hasOut?'var(--danger)':'var(--muted)'}">${rec.timeOut||'-'}</span></div>
+
+    <!-- PHOTO CARD -->
+    <div style="position:relative;width:100%;height:240px;background:#1e2a3a;border-radius:var(--radius);overflow:hidden;margin-bottom:10px;touch-action:none;" id="photoFrame-${key}">
+      ${rec.photo
+        ? `<img id="photoImg-${key}" src="${rec.photo}" style="position:absolute;transform-origin:center center;transform:translate(${transform.x}px,${transform.y}px) scale(${transform.scale});width:100%;height:100%;object-fit:cover;cursor:grab;user-select:none;-webkit-user-select:none;" draggable="false">`
+        : `<div style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;color:rgba(255,255,255,0.3);font-size:60px;">👤</div>`}
+      <!-- Zoom controls -->
+      <div style="position:absolute;bottom:10px;right:10px;display:flex;flex-direction:column;gap:6px;">
+        <button onclick="zoomPhoto('${key}',0.15)" style="width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,0.9);border:none;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.3);">+</button>
+        <button onclick="zoomPhoto('${key}',-0.15)" style="width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,0.9);border:none;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.3);">−</button>
+        <button onclick="resetPhotoTransform('${key}','${type}',${idx})" style="width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,0.9);border:none;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.3);">↺</button>
+      </div>
+      ${rec.photo?`<div style="position:absolute;top:8px;left:8px;background:rgba(0,0,0,0.5);color:white;font-size:11px;padding:3px 8px;border-radius:10px;">👆 ลากเพื่อจัดตำแหน่ง • หยิกเพื่อซูม</div>`:''}
+    </div>
+
+    <!-- Upload button -->
+    <div style="display:flex;gap:8px;margin-bottom:14px;">
+      <label onclick="document.getElementById('fi-${key}').click()" style="flex:1;display:block;background:var(--bg);border:2px dashed var(--border);border-radius:var(--radius-sm);padding:10px;font-size:13px;color:var(--muted);cursor:pointer;text-align:center;">📷 ${rec.photo?'เปลี่ยนรูป':'อัพโหลดรูป'}</label>
+      <input type="file" id="fi-${key}" accept="image/*" style="display:none" onchange="handlePhoto(this,'${type}',${idx})">
+      ${rec.photo?`<button onclick="savePhotoTransform('${key}','${type}',${idx})" style="flex:1;background:var(--primary);color:white;border:none;border-radius:var(--radius-sm);font-family:'Sarabun',sans-serif;font-size:13px;font-weight:600;cursor:pointer;">💾 บันทึกตำแหน่ง</button>`:''}
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+      <div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:5px;font-weight:500;">🟢 เวลาเข้า รพ.</div>
+        <input type="time" id="inp-in-${key}" class="input-field" value="${rec.timeIn||''}"
+          style="font-size:16px;text-align:center;${rec.timeIn?'color:var(--success);border-color:var(--success);font-weight:700;':''}"
+          onchange="saveField('${type}',${idx},'timeIn',this.value);updateCard('${type}',${idx})">
+        <button onclick="setNow('in','${type}',${idx})" style="margin-top:5px;width:100%;padding:7px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);font-family:'Sarabun',sans-serif;font-size:12px;color:var(--muted);cursor:pointer;">⏱ เวลาปัจจุบัน</button>
+      </div>
+      <div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:5px;font-weight:500;">🔴 เวลาออก รพ.</div>
+        <input type="time" id="inp-out-${key}" class="input-field" value="${rec.timeOut||''}"
+          style="font-size:16px;text-align:center;${rec.timeOut?'color:var(--danger);border-color:var(--danger);font-weight:700;':''}"
+          onchange="saveField('${type}',${idx},'timeOut',this.value);updateCard('${type}',${idx})">
+        <button onclick="setNow('out','${type}',${idx})" style="margin-top:5px;width:100%;padding:7px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);font-family:'Sarabun',sans-serif;font-size:12px;color:var(--muted);cursor:pointer;">⏱ เวลาปัจจุบัน</button>
+      </div>
+    </div>
+
+    <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:var(--radius-sm);padding:12px;margin-bottom:12px;">
+      <div style="font-size:12px;font-weight:600;color:#92400e;margin-bottom:8px;">⏰ ตั้งเตือนรับ/ส่ง</div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <input type="time" id="alarm-${key}" value="${rec.alarm||''}" class="input-field" style="flex:1;min-width:100px;font-size:15px;">
+        <button onclick="setAlarm('${type}',${idx})" style="padding:9px 14px;background:var(--accent);color:white;border:none;border-radius:var(--radius-sm);font-family:'Sarabun',sans-serif;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;">🔔 ตั้งเตือน</button>
+        ${rec.alarm?`<button onclick="clearAlarm('${type}',${idx})" style="padding:9px 14px;background:var(--bg);color:var(--muted);border:1px solid var(--border);border-radius:var(--radius-sm);font-family:'Sarabun',sans-serif;font-size:12px;cursor:pointer;">❌ ยกเลิก</button>`:''}
+      </div>
+      ${rec.alarm?`<div style="margin-top:6px;font-size:12px;color:#92400e;">🔔 ตั้งเตือนไว้ที่ <strong>${rec.alarm}</strong></div>`:''}
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
       <div class="info-item"><label>รถ</label><input class="input-field" value="${rec.car||''}" placeholder="ประเภทรถ" onblur="saveField('${type}',${idx},'car',this.value)"></div>
       <div class="info-item"><label>ทะเบียน</label><input class="input-field" value="${rec.plate||''}" placeholder="ทะเบียน" onblur="saveField('${type}',${idx},'plate',this.value)"></div>
     </div>
-    <div class="action-row" style="margin-bottom:10px;">
-      <button class="btn btn-in" onclick="checkIn('${type}',${idx})" ${hasIn?'disabled':''}>🟢 เข้า ${hasIn?rec.timeIn:''}</button>
-      <button class="btn btn-out" onclick="checkOut('${type}',${idx})" ${hasOut?'disabled':''}>🔴 ออก ${hasOut?rec.timeOut:''}</button>
-    </div>
-    ${hasIn||hasOut?`<div style="text-align:center;"><button class="btn-reset" onclick="resetRec('${type}',${idx})">↩ รีเซ็ตเวลา</button></div>`:''}
+
+    ${rec.timeIn||rec.timeOut?`<div style="text-align:center;"><button class="btn-reset" onclick="resetRec('${type}',${idx})">↩ รีเซ็ตเวลาทั้งหมด</button></div>`:''}
   `;
   document.getElementById('backdrop').style.display='block';
   document.getElementById('modal').style.display='block';
+  setTimeout(() => initPhotoInteraction(key, type, idx), 50);
+}
+
+// ===== PHOTO PAN & ZOOM =====
+let photoState = {}; // per key: {x, y, scale, startX, startY, lastDist}
+
+function initPhotoInteraction(key, type, idx) {
+  const img = document.getElementById(`photoImg-${key}`);
+  if (!img) return;
+  const rec = records[key] || {};
+  const t = rec.photoTransform || {x:0, y:0, scale:1};
+  if (!photoState[key]) photoState[key] = {x:t.x, y:t.y, scale:t.scale, dragging:false, lastDist:0};
+  const st = photoState[key];
+
+  function applyTransform() {
+    img.style.transform = `translate(${st.x}px,${st.y}px) scale(${st.scale})`;
+  }
+
+  // Touch events (mobile)
+  img.addEventListener('touchstart', e => {
+    e.preventDefault();
+    if (e.touches.length === 1) {
+      st.dragging = true;
+      st.startX = e.touches[0].clientX - st.x;
+      st.startY = e.touches[0].clientY - st.y;
+    } else if (e.touches.length === 2) {
+      st.dragging = false;
+      st.lastDist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+    }
+  }, {passive:false});
+
+  img.addEventListener('touchmove', e => {
+    e.preventDefault();
+    if (e.touches.length === 1 && st.dragging) {
+      st.x = e.touches[0].clientX - st.startX;
+      st.y = e.touches[0].clientY - st.startY;
+      applyTransform();
+    } else if (e.touches.length === 2) {
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      const ratio = dist / st.lastDist;
+      st.scale = Math.max(0.3, Math.min(5, st.scale * ratio));
+      st.lastDist = dist;
+      applyTransform();
+    }
+  }, {passive:false});
+
+  img.addEventListener('touchend', () => { st.dragging = false; });
+
+  // Mouse events (desktop)
+  img.addEventListener('mousedown', e => {
+    st.dragging = true;
+    st.startX = e.clientX - st.x;
+    st.startY = e.clientY - st.y;
+    img.style.cursor = 'grabbing';
+  });
+  document.addEventListener('mousemove', e => {
+    if (!st.dragging) return;
+    st.x = e.clientX - st.startX;
+    st.y = e.clientY - st.startY;
+    applyTransform();
+  });
+  document.addEventListener('mouseup', () => { st.dragging = false; if(img) img.style.cursor='grab'; });
+}
+
+function zoomPhoto(key, delta) {
+  if (!photoState[key]) photoState[key] = {x:0,y:0,scale:1,dragging:false};
+  const st = photoState[key];
+  st.scale = Math.max(0.3, Math.min(5, st.scale + delta));
+  const img = document.getElementById(`photoImg-${key}`);
+  if (img) img.style.transform = `translate(${st.x}px,${st.y}px) scale(${st.scale})`;
+}
+
+function resetPhotoTransform(key, type, idx) {
+  photoState[key] = {x:0, y:0, scale:1, dragging:false};
+  const img = document.getElementById(`photoImg-${key}`);
+  if (img) img.style.transform = 'translate(0px,0px) scale(1)';
+  // save reset
+  if (records[key]) { delete records[key].photoTransform; saveRec(); }
+  showToast('↺ รีเซ็ตตำแหน่งแล้ว');
+}
+
+function savePhotoTransform(key, type, idx) {
+  const st = photoState[key];
+  if (!st) return;
+  if (!records[key]) records[key] = {};
+  records[key].photoTransform = {x:st.x, y:st.y, scale:st.scale};
+  saveRec();
+  showToast('💾 บันทึกตำแหน่งแล้ว');
+  renderList();
 }
 
 function closeModal() {
@@ -406,21 +569,121 @@ function closeModal() {
 
 function now() { const d=new Date(); return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; }
 
-function checkIn(type,idx) {
+function setNow(field, type, idx) {
   const key=`${type}-${idx}`;
+  const t = now();
   if(!records[key]) records[key]={};
-  records[key].timeIn=now();
-  saveRec(); showToast(`✅ ลงเวลาเข้า ${records[key].timeIn}`);
-  openModal(type,idx); renderList(); renderTable();
+  if(field==='in') { records[key].timeIn=t; document.getElementById(`inp-in-${key}`).value=t; }
+  else { records[key].timeOut=t; document.getElementById(`inp-out-${key}`).value=t; }
+  saveRec(); showToast(`⏱ ใส่เวลา ${t}`);
+  updateCard(type, idx);
+  openModal(type, idx);
 }
 
-function checkOut(type,idx) {
+function updateCard(type, idx) {
+  renderList(); renderTable(); updateSummary();
+}
+
+// Alarm system
+let alarmTimers = {};
+
+function setAlarm(type, idx) {
   const key=`${type}-${idx}`;
-  if(!records[key]?.timeIn){showToast('⚠️ ยังไม่ได้ลงเวลาเข้า');return;}
+  const t = document.getElementById(`alarm-${key}`).value;
+  if(!t) { showToast('⚠️ กรุณาเลือกเวลาก่อน'); return; }
+
+  // Request notification permission
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+
   if(!records[key]) records[key]={};
-  records[key].timeOut=now();
-  saveRec(); showToast(`✅ ลงเวลาออก ${records[key].timeOut}`);
-  openModal(type,idx); renderList(); renderTable();
+  records[key].alarm = t;
+  saveRec();
+
+  // Clear existing timer
+  if(alarmTimers[key]) clearTimeout(alarmTimers[key]);
+
+  // Calculate ms until alarm
+  const now_ = new Date();
+  const [h,m] = t.split(':').map(Number);
+  const alarm = new Date(now_.getFullYear(), now_.getMonth(), now_.getDate(), h, m, 0);
+  let ms = alarm - now_;
+  if(ms < 0) ms += 86400000; // next day
+
+  const name = speakers[type][idx]?.name || '';
+  alarmTimers[key] = setTimeout(() => {
+    triggerAlarm(name, t, key);
+  }, ms);
+
+  const mins = Math.round(ms/60000);
+  showToast(`🔔 ตั้งเตือน ${t} (อีก ${mins} นาที)`);
+  openModal(type, idx);
+}
+
+function clearAlarm(type, idx) {
+  const key=`${type}-${idx}`;
+  if(alarmTimers[key]) clearTimeout(alarmTimers[key]);
+  if(records[key]) delete records[key].alarm;
+  saveRec(); showToast('❌ ยกเลิกการแจ้งเตือนแล้ว');
+  openModal(type, idx);
+}
+
+function triggerAlarm(name, time, key) {
+  // Vibrate
+  if (navigator.vibrate) navigator.vibrate([500,200,500,200,500]);
+
+  // Browser notification
+  if ('Notification' in window && Notification.permission === 'granted') {
+    new Notification('🎤 แจ้งเตือนวิทยากร', {
+      body: `ถึงเวลา ${time} — ${name}`,
+      icon: '🎤',
+      tag: key
+    });
+  }
+
+  // In-app alert banner
+  showAlarmBanner(name, time);
+}
+
+function showAlarmBanner(name, time) {
+  const banner = document.createElement('div');
+  banner.style.cssText = `position:fixed;top:0;left:0;right:0;background:#e8a020;color:white;padding:16px;text-align:center;z-index:9999;font-family:'Sarabun',sans-serif;font-size:15px;font-weight:600;box-shadow:0 4px 20px rgba(0,0,0,0.3);`;
+  banner.innerHTML = `🔔 ถึงเวลา <strong>${time}</strong> — ${name} <br><button onclick="this.parentElement.remove()" style="margin-top:8px;background:white;color:#e8a020;border:none;padding:6px 20px;border-radius:20px;font-family:'Sarabun',sans-serif;font-size:13px;font-weight:700;cursor:pointer;">รับทราบ</button>`;
+  document.body.appendChild(banner);
+  // Also play beep
+  playBeep();
+}
+
+function playBeep() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    [0,300,600].forEach(delay => {
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.connect(g); g.connect(ctx.destination);
+      o.frequency.value = 880;
+      g.gain.setValueAtTime(0.3, ctx.currentTime + delay/1000);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay/1000 + 0.3);
+      o.start(ctx.currentTime + delay/1000);
+      o.stop(ctx.currentTime + delay/1000 + 0.3);
+    });
+  } catch(e) {}
+}
+
+// Restore alarms from localStorage on page load
+function restoreAlarms() {
+  Object.entries(records).forEach(([key, rec]) => {
+    if (!rec.alarm) return;
+    const [type, idx] = key.split('-');
+    const now_ = new Date();
+    const [h,m] = rec.alarm.split(':').map(Number);
+    const alarm = new Date(now_.getFullYear(), now_.getMonth(), now_.getDate(), h, m, 0);
+    let ms = alarm - now_;
+    if(ms < 0) return; // already passed
+    const name = speakers[type]?.[parseInt(idx)]?.name || '';
+    alarmTimers[key] = setTimeout(() => triggerAlarm(name, rec.alarm, key), ms);
+  });
 }
 
 function resetRec(type,idx) {
@@ -429,6 +692,14 @@ function resetRec(type,idx) {
   if(records[key]){delete records[key].timeIn; delete records[key].timeOut;}
   saveRec(); showToast('↩ รีเซ็ตแล้ว');
   openModal(type,idx); renderList(); renderTable();
+}
+
+function editSpeakerField(type, idx, field, value) {
+  if (!speakers[type][idx]) return;
+  speakers[type][idx][field] = value;
+  localStorage.setItem('spkData', JSON.stringify(speakers));
+  renderList(); renderTable();
+  showToast(`✏️ บันทึก${field==='hotel'?'โรงแรม':'วันที่'}แล้ว`);
 }
 
 function saveField(type,idx,field,val) {
@@ -480,6 +751,8 @@ function saveSettings() {
   cfg.external=document.getElementById('sheetExternal').value.trim()||'วิทยากรภายนอก';
   cfg.internal=document.getElementById('sheetInternal').value.trim()||'วิทยากรภายใน';
   localStorage.setItem('spkCfg',JSON.stringify(cfg));
+  const link = document.getElementById('sheetsLink');
+  if (link) link.href = `https://docs.google.com/spreadsheets/d/${cfg.id}/edit`;
   showToast('💾 บันทึกแล้ว กำลังโหลด...'); loadFromSheets();
 }
 
