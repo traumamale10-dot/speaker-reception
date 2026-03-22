@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>แผนกต้อนรับวิทยากร</title>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&family=Kanit:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --primary: #1a4fa0;
+  --primary-light: #2563c7;
+  --primary-dark: #0f2f60;
+  --accent: #e8a020;
+  --success: #16a34a;
+  --danger: #dc2626;
+  --bg: #f0f4fb;
+  --text: #1e2a3a;
+  --muted: #6b7a8d;
+  --border: #d0daea;
+  --shadow: 0 2px 12px rgba(26,79,160,0.10);
+  --radius: 16px;
+  --radius-sm: 10px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+body { font-family: 'Sarabun', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+.header {
+  background: linear-gradient(140deg, var(--primary-dark) 0%, var(--primary) 55%, var(--primary-light) 100%);
+  color: white; padding: 24px 16px 56px; text-align: center; position: relative; overflow: hidden;
+}
+.header::before { content:''; position:absolute; top:-50px; right:-40px; width:200px; height:200px; border-radius:50%; background:rgba(255,255,255,0.06); }
+.header::after { content:''; position:absolute; bottom:-30px; left:-30px; width:140px; height:140px; border-radius:50%; background:rgba(255,255,255,0.04); }
+.header-icon { font-size:38px; margin-bottom:6px; }
+.header h1 { font-family:'Kanit',sans-serif; font-size:20px; font-weight:700; letter-spacing:.5px; }
+.header-sub { font-size:12px; opacity:.7; margin-top:4px; }
+.header-date { margin-top:10px; background:rgba(255,255,255,0.15); border-radius:20px; padding:5px 16px; font-size:12px; display:inline-block; }
+
+.main { padding:0 12px 80px; margin-top:-44px; position:relative; z-index:1; }
+
+.tab-bar { display:flex; background:white; border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden; margin-bottom:14px; }
+.tab-btn { flex:1; padding:13px 6px; border:none; background:transparent; font-family:'Sarabun',sans-serif; font-size:13px; font-weight:500; color:var(--muted); cursor:pointer; border-bottom:3px solid transparent; transition:all .2s; }
+.tab-btn.active { color:var(--primary); border-bottom-color:var(--primary); background:rgba(26,79,160,0.04); font-weight:700; }
+.badge { display:inline-block; background:var(--accent); color:white; font-size:10px; padding:1px 6px; border-radius:10px; margin-left:3px; font-weight:700; }
+
+.summary-row { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-bottom:14px; }
+.sum-card { background:white; border-radius:var(--radius-sm); padding:12px 6px; text-align:center; box-shadow:var(--shadow); }
+.sum-num { font-family:'Kanit',sans-serif; font-size:28px; font-weight:700; line-height:1; }
+.sum-lbl { font-size:11px; color:var(--muted); margin-top:3px; }
+.sum-card.c-all .sum-num { color:var(--primary); }
+.sum-card.c-in .sum-num { color:var(--success); }
+.sum-card.c-out .sum-num { color:var(--muted); }
+
+.search-wrap { position:relative; margin-bottom:12px; }
+.search-wrap span { position:absolute; left:13px; top:50%; transform:translateY(-50%); font-size:18px; color:var(--muted); }
+.search-input { width:100%; padding:12px 12px 12px 42px; border:2px solid var(--border); border-radius:var(--radius-sm); font-family:'Sarabun',sans-serif; font-size:15px; background:white; color:var(--text); outline:none; box-shadow:var(--shadow); transition:border-color .2s; }
+.search-input:focus { border-color:var(--primary); }
+
+.speaker-list { display:flex; flex-direction:column; gap:12px; }
+.speaker-card { background:white; border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden; border-left:4px solid var(--border); }
+.speaker-card.status-in { border-left-color:var(--success); }
+.speaker-card.status-out { border-left-color:var(--muted); }
+.card-main { display:flex; align-items:center; padding:14px; gap:12px; cursor:pointer; }
+.avatar-wrap { position:relative; flex-shrink:0; }
+.avatar { width:58px; height:58px; border-radius:50%; object-fit:cover; border:3px solid var(--border); }
+.avatar-placeholder { width:58px; height:58px; border-radius:50%; background:linear-gradient(135deg,#c7d5ee,#a0b8dc); display:flex; align-items:center; justify-content:center; font-size:22px; border:3px solid var(--border); flex-shrink:0; }
+.status-dot { position:absolute; bottom:2px; right:2px; width:14px; height:14px; border-radius:50%; border:2px solid white; background:var(--border); }
+.status-dot.in { background:var(--success); }
+.status-dot.out { background:var(--muted); }
+.card-info { flex:1; min-width:0; }
+.card-name { font-family:'Kanit',sans-serif; font-size:15px; font-weight:600; line-height:1.3; }
+.card-hotel { font-size:12px; color:var(--muted); margin-top:2px; }
+.card-date { font-size:11px; color:var(--muted); margin-top:1px; }
+.card-times { display:flex; gap:6px; margin-top:6px; flex-wrap:wrap; }
+.time-badge { font-size:11px; padding:2px 9px; border-radius:20px; font-weight:500; }
+.time-badge.in { background:#dcfce7; color:var(--success); }
+.time-badge.out { background:#f3f4f6; color:var(--muted); }
+.card-arrow { font-size:20px; color:var(--border); flex-shrink:0; }
+
+.info-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px; }
+.info-item { background:var(--bg); border-radius:var(--radius-sm); padding:10px 12px; }
+.info-item label { font-size:11px; color:var(--muted); display:block; margin-bottom:3px; }
+.info-item span { font-size:14px; font-weight:500; }
+
+.action-row { display:flex; gap:10px; }
+.btn { flex:1; padding:13px; border:none; border-radius:var(--radius-sm); font-family:'Sarabun',sans-serif; font-size:14px; font-weight:600; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px; }
+.btn-in { background:var(--success); color:white; }
+.btn-in:disabled { background:#86efac; cursor:not-allowed; }
+.btn-out { background:var(--danger); color:white; }
+.btn-out:disabled { background:#fca5a5; cursor:not-allowed; }
+.btn-reset { background:var(--bg); color:var(--muted); border:2px solid var(--border); padding:11px 16px; border-radius:var(--radius-sm); font-family:'Sarabun',sans-serif; font-size:13px; cursor:pointer; }
+
+.input-field { width:100%; padding:9px 10px; border:2px solid var(--border); border-radius:var(--radius-sm); font-family:'Sarabun',sans-serif; font-size:14px; color:var(--text); background:white; outline:none; }
+.input-field:focus { border-color:var(--primary); }
+
+.bottom-nav { position:fixed; bottom:0; left:0; right:0; background:white; box-shadow:0 -2px 16px rgba(26,79,160,0.12); display:flex; z-index:100; }
+.nav-btn { flex:1; padding:12px 6px 14px; border:none; background:transparent; font-family:'Sarabun',sans-serif; font-size:10px; color:var(--muted); cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:4px; }
+.nav-btn .nav-icon { font-size:22px; }
+.nav-btn.active { color:var(--primary); }
+
+.table-wrap { overflow-x:auto; border-radius:var(--radius); box-shadow:var(--shadow); background:white; }
+table { width:100%; border-collapse:collapse; font-size:12px; min-width:480px; }
+thead th { background:var(--primary); color:white; padding:10px 8px; text-align:left; font-family:'Kanit',sans-serif; font-weight:500; }
+tbody tr { border-bottom:1px solid var(--border); }
+tbody tr:hover { background:rgba(26,79,160,0.03); }
+tbody td { padding:9px 8px; }
+.status-pill { display:inline-block; padding:2px 8px; border-radius:20px; font-size:11px; font-weight:600; }
+.status-pill.in { background:#dcfce7; color:var(--success); }
+.status-pill.out { background:#f3f4f6; color:var(--muted); }
+.status-pill.none { background:#fef9ec; color:var(--accent); }
+
+.settings-card { background:white; border-radius:var(--radius); box-shadow:var(--shadow); padding:16px; margin-bottom:14px; }
+.settings-title { font-family:'Kanit',sans-serif; font-size:15px; font-weight:600; margin-bottom:12px; color:var(--primary); }
+.setting-item { padding:12px 0; border-bottom:1px solid var(--border); }
+.setting-item:last-child { border-bottom:none; }
+.setting-label { font-size:14px; font-weight:500; margin-bottom:3px; }
+.setting-desc { font-size:12px; color:var(--muted); margin-bottom:6px; }
+.setting-input { width:100%; padding:10px 12px; border:2px solid var(--border); border-radius:var(--radius-sm); font-family:'Sarabun',sans-serif; font-size:14px; color:var(--text); outline:none; }
+.setting-input:focus { border-color:var(--primary); }
+.btn-primary { background:var(--primary); color:white; border:none; padding:12px 24px; border-radius:var(--radius-sm); font-family:'Sarabun',sans-serif; font-size:14px; font-weight:600; cursor:pointer; width:100%; margin-top:10px; }
+.btn-danger { background:var(--danger); color:white; border:none; padding:11px 20px; border-radius:var(--radius-sm); font-family:'Sarabun',sans-serif; font-size:13px; cursor:pointer; margin-top:8px; width:100%; }
+.alert-info { background:#eff6ff; color:var(--primary); border:1px solid #bfdbfe; border-radius:var(--radius-sm); padding:12px 14px; font-size:13px; line-height:1.7; }
+
+.page { display:none; }
+.page.active { display:block; }
+.loading { text-align:center; padding:40px; color:var(--muted); font-size:14px; }
+.spinner { display:inline-block; width:32px; height:32px; border:3px solid var(--border); border-top-color:var(--primary); border-radius:50%; animation:spin .8s linear infinite; margin-bottom:10px; }
+@keyframes spin { to { transform:rotate(360deg); } }
+.empty { text-align:center; padding:40px 20px; color:var(--muted); }
+.empty .empty-icon { font-size:48px; margin-bottom:12px; }
+
+.toast { position:fixed; bottom:80px; left:50%; transform:translateX(-50%); background:#1e2a3a; color:white; padding:10px 20px; border-radius:30px; font-size:13px; z-index:999; opacity:0; transition:opacity .3s; pointer-events:none; white-space:nowrap; }
+.toast.show { opacity:1; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-icon">🎤</div>
+  <h1>แผนกต้อนรับวิทยากร</h1>
+  <div class="header-sub">Speaker Reception System</div>
+  <div class="header-date" id="headerDate"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="main">
+  <!-- LIST PAGE -->
+  <div class="page active" id="page-list">
+    <div class="tab-bar">
+      <button class="tab-btn active" onclick="switchType('outside')" id="tab-outside">🌐 วิทยากรภายนอก <span class="badge" id="badge-outside">0</span></button>
+      <button class="tab-btn" onclick="switchType('inside')" id="tab-inside">🏥 วิทยากรภายใน <span class="badge" id="badge-inside">0</span></button>
+    </div>
+    <div class="summary-row">
+      <div class="sum-card c-all"><div class="sum-num" id="sum-total">0</div><div class="sum-lbl">ทั้งหมด</div></div>
+      <div class="sum-card c-in"><div class="sum-num" id="sum-in">0</div><div class="sum-lbl">เข้าแล้ว</div></div>
+      <div class="sum-card c-out"><div class="sum-num" id="sum-out">0</div><div class="sum-lbl">กลับแล้ว</div></div>
+    </div>
+    <div class="search-wrap">
+      <span>🔍</span>
+      <input class="search-input" type="text" id="searchInput" placeholder="ค้นหาชื่อวิทยากร..." oninput="renderList()">
+    </div>
+    <div id="listContent"><div class="loading"><div class="spinner"></div><br>กำลังโหลด...</div></div>
+  </div>
+
+  <!-- TABLE PAGE -->
+  <div class="page" id="page-table">
+    <div class="tab-bar">
+      <button class="tab-btn active" onclick="switchType2('outside')" id="tab2-outside">🌐 ภายนอก</button>
+      <button class="tab-btn" onclick="switchType2('inside')" id="tab2-inside">🏥 ภายใน</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>#</th><th>ชื่อ</th><th>โรงแรม</th><th>เข้า</th><th>ออก</th><th>สถานะ</th></tr></thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- SETTINGS PAGE -->
+  <div class="page" id="page-settings">
+    <div class="settings-card">
+      <div class="settings-title">⚙️ เชื่อมต่อ Google Sheets</div>
+      <div class="setting-item">
+        <div class="setting-label">Sheet ID</div>
+        <div class="setting-desc">คัดลอก ID จาก URL ระหว่าง /d/ และ /edit</div>
+        <input class="setting-input" type="text" id="sheetId" placeholder="วาง Sheet ID ที่นี่...">
+      </div>
+      <div class="setting-item">
+        <div class="setting-label">ชื่อ Sheet วิทยากรภายนอก</div>
+        <input class="setting-input" type="text" id="sheetExternal" placeholder="วิทยากรภายนอก">
+      </div>
+      <div class="setting-item">
+        <div class="setting-label">ชื่อ Sheet วิทยากรภายใน</div>
+        <input class="setting-input" type="text" id="sheetInternal" placeholder="วิทยากรภายใน">
+      </div>
+      <button class="btn-primary" onclick="saveSettings()">💾 บันทึกและโหลดข้อมูล</button>
+    </div>
+
+    <div class="settings-card">
+      <div class="settings-title">📖 วิธีตั้งค่า</div>
+      <div class="alert-info">
+        <strong>ทำให้ Sheet อ่านได้สาธารณะ:</strong><br>
+        1. Google Sheets → ไฟล์ → แชร์ → เผยแพร่ไปยังเว็บ<br>
+        2. เลือกแต่ละ Sheet → คลิก "เผยแพร่"<br>
+        3. หรือกด "แชร์" → ตั้งเป็น "ทุกคนที่มีลิงก์ - ผู้มีสิทธิ์อ่าน"<br><br>
+        <strong>Sheet ID ของคุณ:</strong><br>
+        <code style="font-size:11px;word-break:break-all;">1N2vycHqNPciioHavyXu_Po6PdEbPZw2qsiSmzh-7fRM</code>
+      </div>
+    </div>
+
+    <div class="settings-card">
+      <div class="settings-title">🗑️ จัดการข้อมูล</div>
+      <div class="setting-item">
+        <div class="setting-label">รีโหลดจาก Google Sheets</div>
+        <button class="btn-primary" onclick="loadFromSheets()" style="margin-top:8px">🔄 รีโหลด</button>
+      </div>
+      <div class="setting-item">
+        <div class="setting-label">ล้างข้อมูลเวลาทั้งหมด</div>
+        <div class="setting-desc">จะล้างเวลาเข้า-ออก, รูป, รถ, ทะเบียน ที่บันทึกไว้</div>
+        <button class="btn-danger" onclick="confirmClear()">🗑️ ล้างข้อมูลทั้งหมด</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- BOTTOM NAV -->
+<div class="bottom-nav">
+  <button class="nav-btn active" onclick="showPage('list')" id="nav-list"><span class="nav-icon">👥</span>รายชื่อ</button>
+  <button class="nav-btn" onclick="showPage('table')" id="nav-table"><span class="nav-icon">📊</span>ตาราง</button>
+  <button class="nav-btn" onclick="showPage('settings')" id="nav-settings"><span class="nav-icon">⚙️</span>ตั้งค่า</button>
+</div>
+
+<!-- MODAL -->
+<div id="backdrop" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:200;" onclick="closeModal()"></div>
+<div id="modal" style="display:none;position:fixed;bottom:0;left:0;right:0;background:white;border-radius:24px 24px 0 0;z-index:201;max-height:92vh;overflow-y:auto;padding:16px 16px 36px;">
+  <div style="width:40px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 14px;"></div>
+  <div id="modalContent"></div>
+</div>
+
+<script>
+let speakers = { outside: [], inside: [] };
+let records = {};
+let currentType = 'outside';
+let currentType2 = 'outside';
+let cfg = { id: '1N2vycHqNPciioHavyXu_Po6PdEbPZw2qsiSmzh-7fRM', external: 'วิทยากรภายนอก', internal: 'วิทยากรภายใน' };
+
+function init() {
+  setDate();
+  const saved = localStorage.getItem('spkCfg');
+  if (saved) cfg = {...cfg, ...JSON.parse(saved)};
+  document.getElementById('sheetId').value = cfg.id;
+  document.getElementById('sheetExternal').value = cfg.external;
+  document.getElementById('sheetInternal').value = cfg.internal;
+
+  const r = localStorage.getItem('spkRec');
+  if (r) records = JSON.parse(r);
+  const d = localStorage.getItem('spkData');
+  if (d) { speakers = JSON.parse(d); renderList(); renderTable(); updateSummary(); }
+
+  loadFromSheets();
+}
+
+function setDate() {
+  const d = new Date();
+  const days = ['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัสบดี','ศุกร์','เสาร์'];
+  const months = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+  document.getElementById('headerDate').textContent = `วัน${days[d.getDay()]}ที่ ${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()+543}`;
+}
+
+async function loadFromSheets() {
+  if (!cfg.id) { document.getElementById('listContent').innerHTML = `<div class="alert-info" style="margin:0;border-radius:var(--radius-sm);">⚙️ กรุณาตั้งค่า Sheet ID ในหน้าตั้งค่าก่อนครับ</div>`; return; }
+  document.getElementById('listContent').innerHTML = `<div class="loading"><div class="spinner"></div><br>กำลังโหลดข้อมูลจาก Google Sheets...</div>`;
+  try {
+    const [ext, int_] = await Promise.all([fetchSheet(cfg.external), fetchSheet(cfg.internal)]);
+    speakers.outside = ext;
+    speakers.inside = int_;
+    localStorage.setItem('spkData', JSON.stringify(speakers));
+    renderList(); renderTable(); updateSummary();
+    showToast('✅ โหลดข้อมูลสำเร็จ ' + (ext.length + int_.length) + ' คน');
+  } catch(e) {
+    console.error(e);
+    if (speakers.outside.length || speakers.inside.length) {
+      renderList(); renderTable(); updateSummary();
+      showToast('⚠️ ใช้ข้อมูลที่บันทึกไว้');
+    } else {
+      document.getElementById('listContent').innerHTML = `<div class="alert-info" style="border-radius:var(--radius-sm);">
+        ❌ ไม่สามารถโหลดข้อมูลได้<br><br>
+        <strong>กรุณา:</strong><br>
+        1. ไป Google Sheets → ไฟล์ → แชร์ → เผยแพร่ไปยังเว็บ → เผยแพร่<br>
+        2. กลับมากด รีโหลด ในหน้าตั้งค่า
+      </div>`;
+    }
+  }
+}
+
+async function fetchSheet(name) {
+  const url = `https://docs.google.com/spreadsheets/d/${cfg.id}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(name)}`;
+  const res = await fetch(url);
+  const text = await res.text();
+  const json = JSON.parse(text.substring(47).slice(0,-2));
+  return json.table.rows.filter(r => r.c && r.c[3] && r.c[3].v).map((r,i) => ({
+    index: i,
+    num: r.c[0]?.v || (i+1),
+    date: r.c[1]?.f || r.c[1]?.v || '',
+    name: r.c[3]?.v || '',
+    hotel: r.c[4]?.v || '',
+  }));
+}
+
+function renderList() {
+  const list = speakers[currentType];
+  const q = document.getElementById('searchInput').value.trim().toLowerCase();
+  const filtered = list.filter(s => s.name.toLowerCase().includes(q));
+  updateSummary();
+  if (!filtered.length) {
+    document.getElementById('listContent').innerHTML = `<div class="empty"><div class="empty-icon">🔍</div>ไม่พบวิทยากร</div>`;
+    return;
+  }
+  const html = filtered.map(s => {
+    const key = `${currentType}-${s.index}`;
+    const rec = records[key] || {};
+    const hasIn = !!rec.timeIn, hasOut = !!rec.timeOut;
+    const photo = rec.photo ? `<img class="avatar" src="${rec.photo}">` : `<div class="avatar-placeholder">👤</div>`;
+    const dot = hasOut ? 'out' : hasIn ? 'in' : '';
+    const card = hasOut ? 'status-out' : hasIn ? 'status-in' : '';
+    return `<div class="speaker-card ${card}">
+      <div class="card-main" onclick="openModal('${currentType}',${s.index})">
+        <div class="avatar-wrap">${photo}<div class="status-dot ${dot}"></div></div>
+        <div class="card-info">
+          <div class="card-name">${s.name}</div>
+          <div class="card-hotel">🏨 ${s.hotel||'-'}</div>
+          <div class="card-date">📅 ${s.date||''}</div>
+          <div class="card-times">
+            ${hasIn?`<span class="time-badge in">🟢 เข้า ${rec.timeIn}</span>`:''}
+            ${hasOut?`<span class="time-badge out">⚫ ออก ${rec.timeOut}</span>`:''}
+          </div>
+        </div>
+        <div class="card-arrow">›</div>
+      </div>
+    </div>`;
+  }).join('');
+  document.getElementById('listContent').innerHTML = `<div class="speaker-list">${html}</div>`;
+}
+
+function updateSummary() {
+  const list = speakers[currentType];
+  let inC=0, outC=0;
+  list.forEach((s,i) => { const r=records[`${currentType}-${s.index}`]||{}; if(r.timeIn)inC++; if(r.timeOut)outC++; });
+  document.getElementById('sum-total').textContent = list.length;
+  document.getElementById('sum-in').textContent = inC;
+  document.getElementById('sum-out').textContent = outC;
+  document.getElementById('badge-outside').textContent = speakers.outside.length;
+  document.getElementById('badge-inside').textContent = speakers.inside.length;
+}
+
+function renderTable() {
+  const list = speakers[currentType2];
+  const rows = list.map(s => {
+    const rec = records[`${currentType2}-${s.index}`]||{};
+    const pill = rec.timeOut ? `<span class="status-pill out">กลับแล้ว</span>`
+      : rec.timeIn ? `<span class="status-pill in">เข้าแล้ว</span>`
+      : `<span class="status-pill none">รอ</span>`;
+    return `<tr><td>${s.num}</td><td>${s.name}</td><td>${s.hotel||'-'}</td><td>${rec.timeIn||'-'}</td><td>${rec.timeOut||'-'}</td><td>${pill}</td></tr>`;
+  }).join('');
+  document.getElementById('tableBody').innerHTML = rows || `<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--muted)">ไม่มีข้อมูล</td></tr>`;
+}
+
+function openModal(type, idx) {
+  const s = speakers[type][idx];
+  const key = `${type}-${idx}`;
+  const rec = records[key]||{};
+  const hasIn=!!rec.timeIn, hasOut=!!rec.timeOut;
+
+  document.getElementById('modalContent').innerHTML = `
+    <div style="text-align:center;margin-bottom:14px;">
+      ${rec.photo
+        ? `<img src="${rec.photo}" style="width:90px;height:90px;border-radius:50%;object-fit:cover;border:4px solid var(--primary);">`
+        : `<div style="width:90px;height:90px;border-radius:50%;background:linear-gradient(135deg,#c7d5ee,#a0b8dc);display:inline-flex;align-items:center;justify-content:center;font-size:38px;border:4px solid var(--border);">👤</div>`}
+      <div style="margin-top:10px;">
+        <label onclick="document.getElementById('fi-${key}').click()" style="display:inline-block;background:var(--bg);border:2px dashed var(--border);border-radius:var(--radius-sm);padding:7px 18px;font-size:12px;color:var(--muted);cursor:pointer;">📷 ${rec.photo?'เปลี่ยนรูป':'อัพโหลดรูป'}</label>
+        <input type="file" id="fi-${key}" accept="image/*" style="display:none" onchange="handlePhoto(this,'${type}',${idx})">
+      </div>
+    </div>
+    <div style="font-family:'Kanit',sans-serif;font-size:18px;font-weight:700;margin-bottom:4px;">${s.name}</div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:14px;">🏨 ${s.hotel||'-'} &nbsp;|&nbsp; 📅 ${s.date||''}</div>
+    <div class="info-grid">
+      <div class="info-item"><label>เวลาเข้า รพ.</label><span style="color:${hasIn?'var(--success)':'var(--muted)'}">${rec.timeIn||'-'}</span></div>
+      <div class="info-item"><label>เวลาออก รพ.</label><span style="color:${hasOut?'var(--danger)':'var(--muted)'}">${rec.timeOut||'-'}</span></div>
+      <div class="info-item"><label>รถ</label><input class="input-field" value="${rec.car||''}" placeholder="ประเภทรถ" onblur="saveField('${type}',${idx},'car',this.value)"></div>
+      <div class="info-item"><label>ทะเบียน</label><input class="input-field" value="${rec.plate||''}" placeholder="ทะเบียน" onblur="saveField('${type}',${idx},'plate',this.value)"></div>
+    </div>
+    <div class="action-row" style="margin-bottom:10px;">
+      <button class="btn btn-in" onclick="checkIn('${type}',${idx})" ${hasIn?'disabled':''}>🟢 เข้า ${hasIn?rec.timeIn:''}</button>
+      <button class="btn btn-out" onclick="checkOut('${type}',${idx})" ${hasOut?'disabled':''}>🔴 ออก ${hasOut?rec.timeOut:''}</button>
+    </div>
+    ${hasIn||hasOut?`<div style="text-align:center;"><button class="btn-reset" onclick="resetRec('${type}',${idx})">↩ รีเซ็ตเวลา</button></div>`:''}
+  `;
+  document.getElementById('backdrop').style.display='block';
+  document.getElementById('modal').style.display='block';
+}
+
+function closeModal() {
+  document.getElementById('backdrop').style.display='none';
+  document.getElementById('modal').style.display='none';
+}
+
+function now() { const d=new Date(); return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; }
+
+function checkIn(type,idx) {
+  const key=`${type}-${idx}`;
+  if(!records[key]) records[key]={};
+  records[key].timeIn=now();
+  saveRec(); showToast(`✅ ลงเวลาเข้า ${records[key].timeIn}`);
+  openModal(type,idx); renderList(); renderTable();
+}
+
+function checkOut(type,idx) {
+  const key=`${type}-${idx}`;
+  if(!records[key]?.timeIn){showToast('⚠️ ยังไม่ได้ลงเวลาเข้า');return;}
+  if(!records[key]) records[key]={};
+  records[key].timeOut=now();
+  saveRec(); showToast(`✅ ลงเวลาออก ${records[key].timeOut}`);
+  openModal(type,idx); renderList(); renderTable();
+}
+
+function resetRec(type,idx) {
+  if(!confirm('รีเซ็ตเวลาเข้า-ออกใช่ไหม?')) return;
+  const key=`${type}-${idx}`;
+  if(records[key]){delete records[key].timeIn; delete records[key].timeOut;}
+  saveRec(); showToast('↩ รีเซ็ตแล้ว');
+  openModal(type,idx); renderList(); renderTable();
+}
+
+function saveField(type,idx,field,val) {
+  const key=`${type}-${idx}`;
+  if(!records[key]) records[key]={};
+  records[key][field]=val; saveRec();
+}
+
+function handlePhoto(input,type,idx) {
+  const file=input.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const key=`${type}-${idx}`;
+    if(!records[key]) records[key]={};
+    records[key].photo=e.target.result;
+    saveRec(); openModal(type,idx); renderList();
+    showToast('📷 บันทึกรูปแล้ว');
+  };
+  reader.readAsDataURL(file);
+}
+
+function saveRec() { localStorage.setItem('spkRec',JSON.stringify(records)); }
+
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById(`page-${name}`).classList.add('active');
+  document.getElementById(`nav-${name}`).classList.add('active');
+  if(name==='table') renderTable();
+}
+
+function switchType(type) {
+  currentType=type;
+  document.getElementById('tab-outside').classList.toggle('active',type==='outside');
+  document.getElementById('tab-inside').classList.toggle('active',type==='inside');
+  document.getElementById('searchInput').value='';
+  renderList(); updateSummary();
+}
+
+function switchType2(type) {
+  currentType2=type;
+  document.getElementById('tab2-outside').classList.toggle('active',type==='outside');
+  document.getElementById('tab2-inside').classList.toggle('active',type==='inside');
+  renderTable();
+}
+
+function saveSettings() {
+  cfg.id=document.getElementById('sheetId').value.trim();
+  cfg.external=document.getElementById('sheetExternal').value.trim()||'วิทยากรภายนอก';
+  cfg.internal=document.getElementById('sheetInternal').value.trim()||'วิทยากรภายใน';
+  localStorage.setItem('spkCfg',JSON.stringify(cfg));
+  showToast('💾 บันทึกแล้ว กำลังโหลด...'); loadFromSheets();
+}
+
+function confirmClear() {
+  if(!confirm('ล้างข้อมูลเวลา+รูปทั้งหมดใช่ไหม?')) return;
+  records={}; saveRec(); renderList(); renderTable();
+  showToast('🗑️ ล้างแล้ว');
+}
+
+function showToast(msg) {
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2500);
+}
+
+init();
+</script>
+</body>
+</html>
