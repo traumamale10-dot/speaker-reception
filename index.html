@@ -135,7 +135,7 @@ tbody td { padding:9px 8px; }
 <body>
 
 <div class="header">
-  <div class="header-icon"></div>
+  <div class="header-icon">🎤</div>
   <h1>แผนกต้อนรับวิทยากร</h1>
   <div class="header-sub">Speaker Reception System</div>
   <div class="header-date" id="headerDate"></div>
@@ -521,21 +521,17 @@ function getSmartStatus(rec) {
 
   function toDateTime(dateStr, timeStr) {
     if (!timeStr) return null;
-    if (dateStr) {
-      const dt = new Date(`${dateStr}T${timeStr}:00`);
-      if (!isNaN(dt)) return dt;
-    }
-    // ถ้าไม่มีวันที่ ใช้วันนี้
-    const [h,m] = timeStr.split(':').map(Number);
-    const dt = new Date();
-    dt.setHours(h, m, 0, 0);
-    return dt;
+    // ถ้าไม่มีวันที่ ถือว่าไม่มีข้อมูลพอ (ไม่คำนวณ)
+    if (!dateStr) return null;
+    const dt = new Date(`${dateStr}T${timeStr}:00`);
+    if (!isNaN(dt)) return dt;
+    return null;
   }
 
   const inDt  = toDateTime(rec.timeInDate,  rec.timeIn);
   const outDt = toDateTime(rec.timeOutDate, rec.timeOut);
 
-  // ไม่มีข้อมูลเลย
+  // ไม่มีข้อมูลวันที่เลย หรือยังไม่ถึงเวลาเข้า
   if (!inDt && !outDt) return { text: 'รอ', color: 'var(--accent)', bg: '#fef9ec', icon: '🟡', done: false };
 
   // มีเวลาออก
@@ -551,13 +547,11 @@ function getSmartStatus(rec) {
     }
   }
 
-  // มีเวลาเข้า แต่ไม่มีเวลาออก
+  // มีเวลาเข้าแต่ไม่มีเวลาออก
   if (inDt) {
     if (now >= inDt) {
-      // ถึงเวลาเข้าแล้ว = เข้าแล้ว
       return { text: 'เข้าแล้ว', color: 'var(--success)', bg: '#dcfce7', icon: '🟢', done: false };
     } else {
-      // ยังไม่ถึงเวลาเข้า = รอรับ
       const diff = Math.round((inDt - now) / 60000);
       const h = Math.floor(diff / 60);
       const m = diff % 60;
