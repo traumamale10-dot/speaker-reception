@@ -135,7 +135,7 @@ tbody td { padding:9px 8px; }
 <body>
 
 <div class="header">
-  <div class="header-icon"></div>
+  <div class="header-icon">ยินดีต้อนรับ</div>
   <h1>แผนกต้อนรับวิทยากร</h1>
   <div class="header-sub">Speaker Reception System</div>
   <div class="header-date" id="headerDate"></div>
@@ -492,7 +492,7 @@ function updateSummary() {
     const r = records[`${currentType}-${s.index}`]||{};
     const st = getSmartStatus(r);
     if (st.done) outC++;
-    else if (st.text === 'เข้าแล้ว' || st.text.startsWith('ออกใน')) inC++;
+    else if (st.text === 'เข้าแล้ว') inC++;
   });
   document.getElementById('sum-total').textContent = list.length;
   document.getElementById('sum-in').textContent = inC;
