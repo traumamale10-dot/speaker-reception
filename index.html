@@ -520,12 +520,11 @@ function getSmartStatus(rec) {
   const now = new Date();
 
   function toDateTime(dateStr, timeStr) {
-    if (!timeStr) return null;
-    // ถ้าไม่มีวันที่ ถือว่าไม่มีข้อมูลพอ (ไม่คำนวณ)
-    if (!dateStr) return null;
-    const dt = new Date(`${dateStr}T${timeStr}:00`);
-    if (!isNaN(dt)) return dt;
-    return null;
+    if (!timeStr || !dateStr) return null;
+    const [y,mo,d] = dateStr.split('-').map(Number);
+    const [h,m] = timeStr.split(':').map(Number);
+    if (!y||!mo||!d||isNaN(h)||isNaN(m)) return null;
+    return new Date(y, mo-1, d, h, m, 0);
   }
 
   const inDt  = toDateTime(rec.timeInDate,  rec.timeIn);
