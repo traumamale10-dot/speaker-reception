@@ -135,7 +135,7 @@ tbody td { padding:9px 8px; }
 <body>
 
 <div class="header">
-  <div class="header-icon"></div>
+  <div class="header-icon">🎤</div>
   <h1>แผนกต้อนรับวิทยากร</h1>
   <div class="header-sub">Speaker Reception System</div>
   <div class="header-date" id="headerDate"></div>
@@ -456,10 +456,10 @@ function renderList() {
             ${statusBadge}
           </div>
           <div style="margin-top:6px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-            <span style="font-size:12px;font-weight:600;color:${rec.timeIn?'var(--success)':'var(--border)'};">เข้า ${rec.timeIn||'--:--'}</span>
+            <span style="font-size:12px;font-weight:600;color:${rec.timeIn?'var(--success)':'var(--border)'};">เข้า ${rec.timeIn||'--:--'}${rec.timeInDate?' ('+formatDate(rec.timeInDate)+')':''}</span>
             <span style="color:var(--border);font-size:12px;">|</span>
-            <span style="font-size:12px;font-weight:600;color:${rec.timeOut?'var(--danger)':'var(--border)'};">ออก ${rec.timeOut||'--:--'}</span>
-            ${s.date?`<span style="font-size:11px;color:var(--muted);">📅 ${s.date}</span>`:''}
+            <span style="font-size:12px;font-weight:600;color:${rec.timeOut?'var(--danger)':'var(--border)'};">ออก ${rec.timeOut||'--:--'}${rec.timeOutDate?' ('+formatDate(rec.timeOutDate)+')':''}</span>
+            ${s.date&&!rec.timeInDate?`<span style="font-size:11px;color:var(--muted);">📅 ${s.date}</span>`:''}
           </div>
           ${rec.car||rec.plate ? `<div style="margin-top:4px;display:flex;gap:5px;">
             ${rec.car?`<span class="time-badge" style="background:#eff6ff;color:#1a4fa0;">🚗 ${rec.car}</span>`:''}
@@ -507,6 +507,15 @@ function updateSummary() {
 }
 
 // คำนวณสถานะตามเวลาจริง
+function formatDate(dateStr) {
+  if (!dateStr) return '';
+  try {
+    const months = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+    const [y,m,d] = dateStr.split('-').map(Number);
+    return `${d} ${months[m-1]}`;
+  } catch(e) { return dateStr; }
+}
+
 function getSmartStatus(rec) {
   const now = new Date();
 
@@ -599,10 +608,12 @@ function openModal(type, idx, editMode=false) {
         <div style="background:var(--bg);border-radius:var(--radius-sm);padding:12px;text-align:center;">
           <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">🟢 เข้า</div>
           <div style="font-size:15px;font-weight:700;color:${hasIn?'var(--success)':'var(--border)'};">${rec.timeIn||'--:--'}</div>
+          ${rec.timeInDate?`<div style="font-size:10px;color:var(--muted);margin-top:2px;">${formatDate(rec.timeInDate)}</div>`:''}
         </div>
         <div style="background:var(--bg);border-radius:var(--radius-sm);padding:12px;text-align:center;">
           <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">🔴 ออก</div>
           <div style="font-size:15px;font-weight:700;color:${hasOut?'var(--danger)':'var(--border)'};">${rec.timeOut||'--:--'}</div>
+          ${rec.timeOutDate?`<div style="font-size:10px;color:var(--muted);margin-top:2px;">${formatDate(rec.timeOutDate)}</div>`:''}
         </div>
       </div>
 
@@ -1205,6 +1216,7 @@ window.renderTable = renderTable;
 window.updateSummary = updateSummary;
 window.updateDateFilter = updateDateFilter;
 window.filterStatus = filterStatus;
+window.formatDate = formatDate;
 window.getSmartStatus = getSmartStatus;
 
 // ===== FIREBASE SYNC =====
