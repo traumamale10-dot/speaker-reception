@@ -135,7 +135,7 @@ tbody td { padding:9px 8px; }
 <body>
 
 <div class="header">
-  <div class="header-icon"></div>
+  <div class="header-icon">🎤</div>
   <h1>แผนกต้อนรับวิทยากร</h1>
   <div class="header-sub">Speaker Reception System</div>
   <div class="header-date" id="headerDate"></div>
@@ -414,7 +414,7 @@ function renderList() {
       const rec = records[`${currentType}-${s.index}`]||{};
       const st = getSmartStatus(rec);
       if (currentStatusFilter === 'out' && !st.done) return false;
-      if (currentStatusFilter === 'in' && (st.done || !rec.timeIn)) return false;
+      if (currentStatusFilter === 'in' && st.text !== 'เข้าแล้ว') return false;
     }
     return true;
   });
@@ -491,13 +491,12 @@ function filterStatus(s) {
 
 function updateSummary() {
   const list = speakers[currentType];
-  let inC=0, outC=0, waitC=0;
+  let inC=0, outC=0;
   list.forEach((s,i) => {
     const r = records[`${currentType}-${s.index}`]||{};
     const st = getSmartStatus(r);
     if (st.done) outC++;
-    else if (st.icon === '🟢') inC++;
-    else waitC++;
+    else if (st.text === 'เข้าแล้ว') inC++;
   });
   document.getElementById('sum-total').textContent = list.length;
   document.getElementById('sum-in').textContent = inC;
