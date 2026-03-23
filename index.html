@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>แผนกต้อนรับวิทยากรประชุมวิชาการ "ศัลยศาสตร์ รพ.มหาราชนครราชสีมา และเครือข่าย นครชัยบุรินทร์"</title>
+<title>แผนกต้อนรับวิทยากรประชุมวิชาการ</title>
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&family=Kanit:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -240,7 +240,6 @@ function init() {
   const r = localStorage.getItem('spkRec');
   if (r) {
     records = JSON.parse(r);
-    // ล้างค่าเก่าที่อาจเป็น Date(...) string
     let cleaned = false;
     Object.keys(records).forEach(k => {
       if (records[k].timeIn && records[k].timeIn.toString().startsWith('Date(')) {
@@ -275,7 +274,6 @@ async function loadFromSheets() {
     speakers.outside = ext;
     speakers.inside = int_;
     localStorage.setItem('spkData', JSON.stringify(speakers));
-    // ดึงข้อมูลเวลา/รถ/ทะเบียนจาก Sheets มา merge ด้วย
     mergeSheetDataToRecords('outside', ext);
     mergeSheetDataToRecords('inside', int_);
     renderList(); renderTable(); updateSummary();
@@ -314,45 +312,33 @@ async function fetchSheet(name) {
   }));
 }
 
-// แปลงค่าเวลาจาก Google Sheets ให้เป็น HH:MM
 function parseSheetTime(cell) {
   if (!cell) return '';
-
-  // ลอง formatted value ก่อน เช่น "9:00:00" หรือ "09:00"
   if (cell.f) {
     const m = cell.f.toString().match(/^(\d{1,2}):(\d{2})/);
     if (m) return `${String(m[1]).padStart(2,'0')}:${m[2]}`;
   }
-
   const val = cell.v;
   if (!val && val !== 0) return '';
-
-  // กรณี string "Date(1899,11,30,9,0,0)"
   if (typeof val === 'string' && val.startsWith('Date(')) {
     const parts = val.replace('Date(','').replace(')','').split(',').map(Number);
     const h = String(parts[3]||0).padStart(2,'0');
     const m = String(parts[4]||0).padStart(2,'0');
     return `${h}:${m}`;
   }
-
-  // กรณี string HH:MM หรือ HH:MM:SS
   if (typeof val === 'string' && val.includes(':')) {
     const m = val.match(/^(\d{1,2}):(\d{2})/);
     if (m) return `${String(m[1]).padStart(2,'0')}:${m[2]}`;
   }
-
-  // กรณี number (fraction of day เช่น 0.375 = 09:00)
   if (typeof val === 'number' && val >= 0 && val < 1) {
     const totalMins = Math.round(val * 24 * 60);
     const h = String(Math.floor(totalMins / 60) % 24).padStart(2,'0');
     const m = String(totalMins % 60).padStart(2,'0');
     return `${h}:${m}`;
   }
-
   return '';
 }
 
-// แปลงเวลาที่อาจยังเป็น Date(...) string ให้เป็น HH:MM
 function cleanTime(val) {
   if (!val) return '';
   const s = val.toString();
@@ -367,7 +353,6 @@ function cleanTime(val) {
   return s;
 }
 
-// นำข้อมูลจาก Sheets มา merge เข้า records
 function mergeSheetDataToRecords(type, list) {
   list.forEach((s, i) => {
     const key = `${type}-${i}`;
@@ -377,7 +362,6 @@ function mergeSheetDataToRecords(type, list) {
     if (s.car)     records[key].car     = s.car;
     if (s.plate)   records[key].plate   = s.plate;
   });
-  // ทำความสะอาดค่าเก่าที่อาจยังเป็น Date(...) ใน records ทั้งหมด
   Object.keys(records).forEach(k => {
     if (records[k].timeIn)  records[k].timeIn  = cleanTime(records[k].timeIn);
     if (records[k].timeOut) records[k].timeOut = cleanTime(records[k].timeOut);
@@ -389,6 +373,45 @@ function getUniqueDates() {
   const list = speakers[currentType];
   const dates = [...new Set(list.map(s => s.date).filter(Boolean))];
   return dates;
+}
+
+// ============================================================
+// แก้ไข: updateSummary — นับ "เข้าแล้ว" โดยใช้ timeIn + timeInDate
+// จริงๆ แทนการเปรียบเทียบ st.text ซึ่งอาจเป็น "ออกใน X ชม." แทน
+// ============================================================
+function updateSummary() {
+  const list = speakers[currentType];
+  let inC = 0, outC = 0;
+  const now = new Date();
+
+  list.forEach((s) => {
+    const r = records[`${currentType}-${s.index}`] || {};
+    const st = getSmartStatus(r);
+
+    if (st.done) {
+      outC++;
+    } else if (r.timeIn) {
+      // นับ "เข้าแล้ว" = มีเวลาเข้า และถึงเวลานั้นแล้ว (ไม่ว่าจะมีเวลาออกหรือไม่)
+      let inDt = null;
+      if (r.timeInDate && r.timeIn) {
+        const [y, mo, d] = r.timeInDate.split('-').map(Number);
+        const [h, m] = r.timeIn.split(':').map(Number);
+        if (y && mo && d && !isNaN(h) && !isNaN(m)) {
+          inDt = new Date(y, mo - 1, d, h, m, 0);
+        }
+      }
+      // ถ้าไม่มีวันที่ แต่มีเวลาเข้า ให้นับเป็น "เข้าแล้ว" เลย
+      if (!inDt || now >= inDt) {
+        inC++;
+      }
+    }
+  });
+
+  document.getElementById('sum-total').textContent = list.length;
+  document.getElementById('sum-in').textContent = inC;
+  document.getElementById('sum-out').textContent = outC;
+  document.getElementById('badge-outside').textContent = speakers.outside.length;
+  document.getElementById('badge-inside').textContent = speakers.inside.length;
 }
 
 function updateDateFilter() {
@@ -407,17 +430,38 @@ function renderList() {
   const list = speakers[currentType];
   const q = document.getElementById('searchInput')?.value.trim().toLowerCase() || '';
   const dateF = document.getElementById('dateFilter')?.value || '';
+  const now = new Date();
+
   const filtered = list.filter(s => {
     if (!s.name.toLowerCase().includes(q)) return false;
     if (dateF && s.date !== dateF) return false;
     if (currentStatusFilter) {
-      const rec = records[`${currentType}-${s.index}`]||{};
+      const rec = records[`${currentType}-${s.index}`] || {};
       const st = getSmartStatus(rec);
-      if (currentStatusFilter === 'out' && !st.done) return false;
-      if (currentStatusFilter === 'in' && st.text !== 'เข้าแล้ว') return false;
+
+      if (currentStatusFilter === 'out') {
+        if (!st.done) return false;
+      } else if (currentStatusFilter === 'in') {
+        // ============================================================
+        // แก้ไข: filter "in" = มีเวลาเข้า + ถึงเวลาแล้ว + ยังไม่ done
+        // ============================================================
+        if (st.done) return false;
+        if (!rec.timeIn) return false;
+        let inDt = null;
+        if (rec.timeInDate && rec.timeIn) {
+          const [y, mo, d] = rec.timeInDate.split('-').map(Number);
+          const [h, m] = rec.timeIn.split(':').map(Number);
+          if (y && mo && d && !isNaN(h) && !isNaN(m)) {
+            inDt = new Date(y, mo - 1, d, h, m, 0);
+          }
+        }
+        // ถ้าไม่มีวันที่ แต่มีเวลาเข้า ให้ผ่าน; ถ้ามีวันที่ต้องถึงเวลาแล้ว
+        if (inDt && now < inDt) return false;
+      }
     }
     return true;
   });
+
   updateSummary();
   updateDateFilter();
 
@@ -469,11 +513,10 @@ function renderList() {
   document.getElementById('listContent').innerHTML = `<div class="speaker-list">${html}</div>`;
 }
 
-let currentStatusFilter = ''; // '', 'in', 'out', 'wait'
+let currentStatusFilter = '';
 
 function filterStatus(s) {
   currentStatusFilter = currentStatusFilter === s ? '' : s;
-  // highlight ปุ่ม
   ['all','in','out'].forEach(k => {
     const el = document.getElementById(`sum-card-${k}`);
     if (el) el.style.outline = '';
@@ -485,23 +528,6 @@ function filterStatus(s) {
   renderList();
 }
 
-function updateSummary() {
-  const list = speakers[currentType];
-  let inC=0, outC=0;
-  list.forEach((s,i) => {
-    const r = records[`${currentType}-${s.index}`]||{};
-    const st = getSmartStatus(r);
-    if (st.done) outC++;
-    else if (st.text === 'เข้าแล้ว') inC++;
-  });
-  document.getElementById('sum-total').textContent = list.length;
-  document.getElementById('sum-in').textContent = inC;
-  document.getElementById('sum-out').textContent = outC;
-  document.getElementById('badge-outside').textContent = speakers.outside.length;
-  document.getElementById('badge-inside').textContent = speakers.inside.length;
-}
-
-// คำนวณสถานะตามเวลาจริง
 function formatDate(dateStr) {
   if (!dateStr) return '';
   try {
@@ -525,10 +551,8 @@ function getSmartStatus(rec) {
   const inDt  = toDateTime(rec.timeInDate,  rec.timeIn);
   const outDt = toDateTime(rec.timeOutDate, rec.timeOut);
 
-  // ไม่มีข้อมูลวันที่เลย หรือยังไม่ถึงเวลาเข้า
   if (!inDt && !outDt) return { text: 'รอ', color: 'var(--accent)', bg: '#fef9ec', icon: '🟡', done: false };
 
-  // มีเวลาออก
   if (outDt) {
     if (now >= outDt) {
       return { text: 'กลับแล้ว', color: 'var(--muted)', bg: '#f3f4f6', icon: '⚫', done: true };
@@ -541,7 +565,6 @@ function getSmartStatus(rec) {
     }
   }
 
-  // มีเวลาเข้าแต่ไม่มีเวลาออก
   if (inDt) {
     if (now >= inDt) {
       return { text: 'เข้าแล้ว', color: 'var(--success)', bg: '#dcfce7', icon: '🟢', done: false };
@@ -568,7 +591,6 @@ function renderTable() {
   document.getElementById('tableBody').innerHTML = rows || `<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--muted)">ไม่มีข้อมูล</td></tr>`;
 }
 
-// อัพเดต status ทุก 1 นาที
 setInterval(() => { renderTable(); renderList(); }, 60000);
 
 function openModal(type, idx, editMode=false) {
@@ -587,9 +609,7 @@ function openModal(type, idx, editMode=false) {
   const statusText = `${statusSt.icon} ${statusSt.text}`;
 
   if (!editMode) {
-    // ===== โหมดดู =====
     document.getElementById('modalContent').innerHTML = `
-      <!-- รูปภาพ -->
       <div style="position:relative;width:100%;background:#1e2a3a;border-radius:var(--radius);overflow:hidden;margin-bottom:14px;min-height:120px;">
         ${rec.photo
           ? `<img src="${rec.photo}" style="width:100%;height:auto;display:block;max-height:70vh;object-fit:contain;">`
@@ -603,7 +623,6 @@ function openModal(type, idx, editMode=false) {
         </div>
       </div>
 
-      <!-- สถานะ + ข้อมูลหลัก -->
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px;">
         <div style="background:var(--bg);border-radius:var(--radius-sm);padding:12px;text-align:center;">
           <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">สถานะ</div>
@@ -621,7 +640,6 @@ function openModal(type, idx, editMode=false) {
         </div>
       </div>
 
-      <!-- ข้อมูลรถ -->
       ${rec.car||rec.plate ? `
       <div style="background:var(--bg);border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:14px;display:flex;gap:16px;">
         <div><div style="font-size:11px;color:var(--muted);">🚗 รถ</div><div style="font-size:14px;font-weight:500;">${rec.car||'-'}</div></div>
@@ -633,13 +651,11 @@ function openModal(type, idx, editMode=false) {
         🔔 ตั้งเตือนไว้ที่ <strong>${rec.alarm}</strong>
       </div>` : ''}
 
-      <!-- ปุ่มแก้ไข -->
       <button onclick="openModal('${type}',${idx},true)" style="width:100%;padding:14px;background:var(--primary);color:white;border:none;border-radius:var(--radius-sm);font-family:'Sarabun',sans-serif;font-size:15px;font-weight:700;cursor:pointer;margin-bottom:8px;">
         ✏️ แก้ไข / เพิ่มข้อมูล
       </button>
     `;
   } else {
-    // ===== โหมดแก้ไข =====
     document.getElementById('modalContent').innerHTML = `
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
         <button onclick="openModal('${type}',${idx},false)" style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:7px 12px;font-size:13px;cursor:pointer;color:var(--muted);">← กลับ</button>
@@ -648,7 +664,6 @@ function openModal(type, idx, editMode=false) {
           style="background:#34a853;color:white;font-size:11px;padding:6px 10px;border-radius:20px;text-decoration:none;font-family:'Sarabun',sans-serif;font-weight:600;white-space:nowrap;">📝 Sheets</a>
       </div>
 
-      <!-- รูปภาพ -->
       <div style="position:relative;width:100%;height:220px;background:#1e2a3a;border-radius:var(--radius);overflow:hidden;margin-bottom:8px;" id="photoFrame-${key}">
         ${rec.photo
           ? `<img id="photoImg-${key}" src="${rec.photo}" style="width:100%;height:100%;object-fit:cover;object-position:${px}% ${py}%;display:block;cursor:grab;user-select:none;-webkit-user-select:none;transform:scale(${scale});transform-origin:center center;" draggable="false">`
@@ -666,11 +681,8 @@ function openModal(type, idx, editMode=false) {
         ${rec.photo?`<button onclick="savePhotoTransform('${key}','${type}',${idx})" style="flex:1;background:var(--primary);color:white;border:none;border-radius:var(--radius-sm);font-family:'Sarabun',sans-serif;font-size:13px;font-weight:600;cursor:pointer;">💾 ตำแหน่งรูป</button>`:''}
       </div>
 
-      <!-- เวลาเข้า-ออก -->
       <div style="background:var(--bg);border-radius:var(--radius-sm);padding:14px;margin-bottom:12px;">
         <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:12px;">⏰ เวลาเข้า-ออก</div>
-
-        <!-- เวลาเข้า -->
         <div style="background:white;border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:8px;border:2px solid ${rec.timeIn?'var(--success)':'var(--border)'};">
           <div style="font-size:11px;color:var(--muted);margin-bottom:6px;font-weight:500;">🟢 เวลาเข้า รพ.</div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
@@ -685,8 +697,6 @@ function openModal(type, idx, editMode=false) {
           </div>
           <button onclick="setNowField('in','${key}')" style="margin-top:6px;width:100%;padding:6px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);font-family:'Sarabun',sans-serif;font-size:12px;color:var(--muted);cursor:pointer;">⏱ วันที่+เวลาปัจจุบัน</button>
         </div>
-
-        <!-- เวลาออก -->
         <div style="background:white;border-radius:var(--radius-sm);padding:10px 12px;border:2px solid ${rec.timeOut?'var(--danger)':'var(--border)'};">
           <div style="font-size:11px;color:var(--muted);margin-bottom:6px;font-weight:500;">🔴 เวลาออก รพ.</div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
@@ -703,7 +713,6 @@ function openModal(type, idx, editMode=false) {
         </div>
       </div>
 
-      <!-- รถ/ทะเบียน -->
       <div style="background:var(--bg);border-radius:var(--radius-sm);padding:14px;margin-bottom:12px;">
         <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:10px;">🚗 ข้อมูลรถ</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
@@ -714,7 +723,6 @@ function openModal(type, idx, editMode=false) {
         </div>
       </div>
 
-      <!-- โรงแรม/วันที่ -->
       <div style="background:var(--bg);border-radius:var(--radius-sm);padding:14px;margin-bottom:12px;">
         <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:10px;">📋 ข้อมูลทั่วไป</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
@@ -725,13 +733,11 @@ function openModal(type, idx, editMode=false) {
         </div>
       </div>
 
-      <!-- ปุ่มบันทึก -->
       <button onclick="saveAllFields('${type}',${idx},'${key}')"
         style="width:100%;padding:15px;background:var(--primary);color:white;border:none;border-radius:var(--radius-sm);font-family:'Sarabun',sans-serif;font-size:16px;font-weight:700;cursor:pointer;margin-bottom:12px;">
         💾 บันทึกข้อมูล
       </button>
 
-      <!-- ตั้งเตือน (ด้านล่างสุด) -->
       <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:var(--radius-sm);padding:12px;margin-bottom:12px;">
         <div style="font-size:12px;font-weight:600;color:#92400e;margin-bottom:8px;">🔔 ตั้งเตือนรับ/ส่ง</div>
         <div style="display:flex;gap:8px;align-items:center;">
@@ -751,8 +757,7 @@ function openModal(type, idx, editMode=false) {
   document.getElementById('modal').style.display='block';
 }
 
-// ===== PHOTO PAN & ZOOM =====
-let photoState = {}; // per key: {x, y, scale, startX, startY, lastDist}
+let photoState = {};
 
 function initPhotoInteraction(key, type, idx) {
   const img = document.getElementById(`photoImg-${key}`);
@@ -765,7 +770,6 @@ function initPhotoInteraction(key, type, idx) {
   const st = photoState[key];
 
   function applyTransform() {
-    // clamp x,y ให้อยู่ใน 0-100 range
     st.x = Math.max(-50, Math.min(50, st.x));
     st.y = Math.max(-50, Math.min(50, st.y));
     const px = 50 + st.x;
@@ -776,7 +780,6 @@ function initPhotoInteraction(key, type, idx) {
 
   applyTransform();
 
-  // Touch drag on frame
   frame.addEventListener('touchstart', e => {
     if (e.touches.length === 1) {
       st.dragging = true;
@@ -799,7 +802,7 @@ function initPhotoInteraction(key, type, idx) {
       e.preventDefault();
       const dx = (e.touches[0].clientX - st.startClientX) / frame.offsetWidth * 100;
       const dy = (e.touches[0].clientY - st.startClientY) / frame.offsetHeight * 100;
-      st.x = st.startX - dx; // invert: drag right = move focus left
+      st.x = st.startX - dx;
       st.y = st.startY - dy;
       applyTransform();
     } else if (e.touches.length === 2) {
@@ -816,7 +819,6 @@ function initPhotoInteraction(key, type, idx) {
 
   frame.addEventListener('touchend', () => { st.dragging = false; });
 
-  // Mouse drag
   frame.addEventListener('mousedown', e => {
     st.dragging = true;
     st.startClientX = e.clientX;
@@ -896,7 +898,6 @@ function updateCard(type, idx) {
   renderList(); renderTable(); updateSummary();
 }
 
-// ===== SERVICE WORKER =====
 let swReg = null;
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('./sw.js').then(reg => {
@@ -905,15 +906,12 @@ if ('serviceWorker' in navigator) {
   }).catch(e => console.log('SW error:', e));
 }
 
-// Alarm system
 let alarmTimers = {};
 
 function setAlarm(type, idx) {
   const key=`${type}-${idx}`;
   const t = document.getElementById(`alarm-${key}`).value;
   if(!t) { showToast('⚠️ กรุณาเลือกเวลาก่อน'); return; }
-
-  // Request notification permission
   if ('Notification' in window && Notification.permission !== 'granted') {
     Notification.requestPermission().then(p => {
       if (p === 'granted') doSetAlarm(type, idx, key, t);
@@ -928,26 +926,17 @@ function doSetAlarm(type, idx, key, t) {
   if(!records[key]) records[key]={};
   records[key].alarm = t;
   saveRec();
-
-  // Clear existing
   if(alarmTimers[key]) clearTimeout(alarmTimers[key]);
-
   const now_ = new Date();
   const [h,m] = t.split(':').map(Number);
   const alarm = new Date(now_.getFullYear(), now_.getMonth(), now_.getDate(), h, m, 0);
   let ms = alarm - now_;
   if(ms < 0) ms += 86400000;
-
   const name = speakers[type][idx]?.name || '';
-
-  // ส่งไปให้ Service Worker จัดการ (ทำงานแม้ปิดแอป)
   if (swReg && swReg.active) {
     swReg.active.postMessage({ type:'SET_ALARM', key, name, time:t, ms });
   }
-
-  // Fallback: timer ใน tab นี้ด้วย
   alarmTimers[key] = setTimeout(() => triggerAlarm(name, t, key), ms);
-
   const mins = Math.round(ms/60000);
   showToast(`🔔 ตั้งเตือน ${t} (อีก ${mins} นาที)`);
   openModal(type, idx);
@@ -956,7 +945,6 @@ function doSetAlarm(type, idx, key, t) {
 function clearAlarm(type, idx) {
   const key=`${type}-${idx}`;
   if(alarmTimers[key]) clearTimeout(alarmTimers[key]);
-  // แจ้ง SW ยกเลิกด้วย
   if (swReg && swReg.active) swReg.active.postMessage({ type:'CLEAR_ALARM', key });
   if(records[key]) delete records[key].alarm;
   saveRec(); showToast('❌ ยกเลิกการแจ้งเตือนแล้ว');
@@ -964,10 +952,7 @@ function clearAlarm(type, idx) {
 }
 
 function triggerAlarm(name, time, key) {
-  // Vibrate
   if (navigator.vibrate) navigator.vibrate([500,200,500,200,500]);
-
-  // Browser notification
   if ('Notification' in window && Notification.permission === 'granted') {
     new Notification('🎤 แจ้งเตือนวิทยากร', {
       body: `ถึงเวลา ${time} — ${name}`,
@@ -975,8 +960,6 @@ function triggerAlarm(name, time, key) {
       tag: key
     });
   }
-
-  // In-app alert banner
   showAlarmBanner(name, time);
 }
 
@@ -985,7 +968,6 @@ function showAlarmBanner(name, time) {
   banner.style.cssText = `position:fixed;top:0;left:0;right:0;background:#e8a020;color:white;padding:16px;text-align:center;z-index:9999;font-family:'Sarabun',sans-serif;font-size:15px;font-weight:600;box-shadow:0 4px 20px rgba(0,0,0,0.3);`;
   banner.innerHTML = `🔔 ถึงเวลา <strong>${time}</strong> — ${name} <br><button onclick="this.parentElement.remove()" style="margin-top:8px;background:white;color:#e8a020;border:none;padding:6px 20px;border-radius:20px;font-family:'Sarabun',sans-serif;font-size:13px;font-weight:700;cursor:pointer;">รับทราบ</button>`;
   document.body.appendChild(banner);
-  // Also play beep
   playBeep();
 }
 
@@ -1005,7 +987,6 @@ function playBeep() {
   } catch(e) {}
 }
 
-// Restore alarms from localStorage on page load
 function restoreAlarms() {
   Object.entries(records).forEach(([key, rec]) => {
     if (!rec.alarm) return;
@@ -1014,7 +995,7 @@ function restoreAlarms() {
     const [h,m] = rec.alarm.split(':').map(Number);
     const alarm = new Date(now_.getFullYear(), now_.getMonth(), now_.getDate(), h, m, 0);
     let ms = alarm - now_;
-    if(ms < 0) return; // already passed
+    if(ms < 0) return;
     const name = speakers[type]?.[parseInt(idx)]?.name || '';
     alarmTimers[key] = setTimeout(() => triggerAlarm(name, rec.alarm, key), ms);
   });
@@ -1035,7 +1016,6 @@ function resetRec(type,idx) {
 
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwdLmVvmC4MDgm64K9mRX9Bc4ia6KNAqiqkcdF1BxsJNnfhgnisBHvjWjtkx7Sy44ng0g/exec';
 
-// ส่งข้อมูลกลับ Google Sheets
 async function syncToSheet(sheetType, idx, field, value) {
   try {
     await fetch(APPS_SCRIPT_URL, {
@@ -1087,19 +1067,17 @@ function saveAllFields(type, idx, key) {
   records[key].plate       = plate;
   saveRec();
 
-  // sync ไป Sheets
   if (timeIn)  syncToSheet(type, idx, 'timeIn',  timeIn);
   if (timeOut) syncToSheet(type, idx, 'timeOut', timeOut);
   if (car)     syncToSheet(type, idx, 'car',     car);
   if (plate)   syncToSheet(type, idx, 'plate',   plate);
 
-  // แก้โรงแรม/วันที่
   if (hotel !== speakers[type][idx]?.hotel) editSpeakerField(type, idx, 'hotel', hotel);
   if (date  !== speakers[type][idx]?.date)  editSpeakerField(type, idx, 'date',  date);
 
   renderList(); renderTable(); updateSummary();
   showToast('✅ บันทึกข้อมูลแล้ว');
-  openModal(type, idx, false); // กลับไปโหมดดู
+  openModal(type, idx, false);
 }
 
 window.saveAllFields = saveAllFields;
@@ -1136,7 +1114,6 @@ function handlePhoto(input,type,idx) {
     records[key].photo=e.target.result;
     localStorage.setItem('spkRec',JSON.stringify(records));
     openModal(type,idx); renderList();
-    // sync รูปขึ้น Firebase (บีบอัดแล้ว)
     syncPhoto(key, e.target.result);
   };
   reader.readAsDataURL(file);
@@ -1144,7 +1121,6 @@ function handlePhoto(input,type,idx) {
 
 function saveRec() {
   localStorage.setItem('spkRec', JSON.stringify(records));
-  // Sync to Firebase (ไม่รวมรูป เพราะรูปใหญ่เกินไป)
   if (window.fbDb) {
     const light = {};
     Object.entries(records).forEach(([k,v]) => {
@@ -1199,7 +1175,6 @@ function showToast(msg) {
   setTimeout(()=>t.classList.remove('show'),2500);
 }
 
-// Expose functions globally for onclick handlers
 window.clearPhoto = clearPhoto;
 window.switchType = switchType;
 window.switchType2 = switchType2;
@@ -1248,7 +1223,6 @@ window.fbDb = fbDb;
 window.fbRef = ref;
 window.fbSet = set;
 
-// บีบอัดรูปให้เล็กก่อน sync (max 400px, quality 0.5 → ~30-50KB)
 function compressImage(dataUrl, maxW=400, quality=0.5) {
   return new Promise(resolve => {
     const img = new Image();
@@ -1264,7 +1238,6 @@ function compressImage(dataUrl, maxW=400, quality=0.5) {
   });
 }
 
-// Sync รูปขึ้น Firebase
 async function syncPhoto(key, dataUrl) {
   try {
     showToast('⏳ กำลังซิงค์รูป...');
@@ -1277,7 +1250,6 @@ async function syncPhoto(key, dataUrl) {
   }
 }
 
-// Listen records
 onValue(ref(fbDb, 'records'), (snapshot) => {
   const data = snapshot.val();
   if (!data) return;
@@ -1294,7 +1266,6 @@ onValue(ref(fbDb, 'records'), (snapshot) => {
   }
 });
 
-// Listen photos
 onValue(ref(fbDb, 'photos'), (snapshot) => {
   const data = snapshot.val();
   if (!data) return;
