@@ -135,7 +135,7 @@ tbody td { padding:9px 8px; }
 <body>
 
 <div class="header">
-  <div class="header-icon">🎤</div>
+  <div class="header-icon"></div>
   <h1>แผนกต้อนรับวิทยากร</h1>
   <div class="header-sub">Speaker Reception System</div>
   <div class="header-date" id="headerDate"></div>
@@ -440,13 +440,9 @@ function renderList() {
         })()
       : `<div class="avatar-placeholder">👤</div>`;
     const st = getSmartStatus(rec);
-    const dot = st.done ? 'out' : (rec.timeIn ? 'in' : '');
-    const card = st.done ? 'status-out' : (rec.timeIn ? 'status-in' : '');
-    const statusBadge = st.done
-      ? `<span style="font-size:11px;padding:2px 8px;border-radius:20px;background:#f3f4f6;color:var(--muted);font-weight:600;">⚫ กลับแล้ว</span>`
-      : rec.timeIn
-      ? `<span style="font-size:11px;padding:2px 8px;border-radius:20px;background:#dcfce7;color:var(--success);font-weight:600;">🟢 เข้าแล้ว</span>`
-      : `<span style="font-size:11px;padding:2px 8px;border-radius:20px;background:#fef9ec;color:var(--accent);font-weight:600;">🟡 รอ</span>`;
+    const dot = st.done ? 'out' : (st.text === 'เข้าแล้ว' ? 'in' : '');
+    const card = st.done ? 'status-out' : (st.text === 'เข้าแล้ว' ? 'status-in' : '');
+    const statusBadge = `<span style="font-size:11px;padding:2px 8px;border-radius:20px;background:${st.bg};color:${st.color};font-weight:600;">${st.icon} ${st.text}</span>`;
     return `<div class="speaker-card ${card}">
       <div class="card-main" onclick="openModal('${currentType}',${s.index})">
         <div class="avatar-wrap">${photo}<div class="status-dot ${dot}"></div></div>
@@ -496,7 +492,7 @@ function updateSummary() {
     const r = records[`${currentType}-${s.index}`]||{};
     const st = getSmartStatus(r);
     if (st.done) outC++;
-    else if (st.text === 'เข้าแล้ว') inC++;
+    else if (st.text === 'เข้าแล้ว' || st.text.startsWith('ออกใน')) inC++;
   });
   document.getElementById('sum-total').textContent = list.length;
   document.getElementById('sum-in').textContent = inC;
