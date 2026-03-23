@@ -135,7 +135,7 @@ tbody td { padding:9px 8px; }
 <body>
 
 <div class="header">
-  <div class="header-icon"></div>
+  <div class="header-icon">🎤</div>
   <h1>แผนกต้อนรับวิทยากร</h1>
   <div class="header-sub">Speaker Reception System</div>
   <div class="header-date" id="headerDate"></div>
@@ -455,10 +455,11 @@ function renderList() {
             <div class="card-name" style="flex:1;min-width:0;">${s.name}</div>
             ${statusBadge}
           </div>
-          <div style="margin-top:6px;display:flex;gap:6px;align-items:center;">
+          <div style="margin-top:6px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
             <span style="font-size:12px;font-weight:600;color:${rec.timeIn?'var(--success)':'var(--border)'};">เข้า ${rec.timeIn||'--:--'}</span>
             <span style="color:var(--border);font-size:12px;">|</span>
             <span style="font-size:12px;font-weight:600;color:${rec.timeOut?'var(--danger)':'var(--border)'};">ออก ${rec.timeOut||'--:--'}</span>
+            ${s.date?`<span style="font-size:11px;color:var(--muted);">📅 ${s.date}</span>`:''}
           </div>
           ${rec.car||rec.plate ? `<div style="margin-top:4px;display:flex;gap:5px;">
             ${rec.car?`<span class="time-badge" style="background:#eff6ff;color:#1a4fa0;">🚗 ${rec.car}</span>`:''}
@@ -650,7 +651,10 @@ function openModal(type, idx, editMode=false) {
 
       <!-- เวลาเข้า-ออก -->
       <div style="background:var(--bg);border-radius:var(--radius-sm);padding:14px;margin-bottom:12px;">
-        <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:10px;">⏰ เวลาเข้า-ออก</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+          <div style="font-size:13px;font-weight:600;color:var(--text);">⏰ เวลาเข้า-ออก</div>
+          <div style="font-size:12px;color:var(--muted);background:white;padding:4px 10px;border-radius:20px;border:1px solid var(--border);">📅 ${s.date||'ไม่ระบุวันที่'}</div>
+        </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
           <div>
             <div style="font-size:11px;color:var(--muted);margin-bottom:5px;">🟢 เวลาเข้า รพ.</div>
