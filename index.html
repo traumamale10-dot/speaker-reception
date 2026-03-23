@@ -135,7 +135,7 @@ tbody td { padding:9px 8px; }
 <body>
 
 <div class="header">
-  <div class="header-icon">🎤</div>
+  <div class="header-icon"></div>
   <h1>แผนกต้อนรับวิทยากร</h1>
   <div class="header-sub">Speaker Reception System</div>
   <div class="header-date" id="headerDate"></div>
@@ -509,28 +509,31 @@ function updateSummary() {
 // คำนวณสถานะตามเวลาจริง
 function getSmartStatus(rec) {
   const now = new Date();
-  const nowMins = now.getHours() * 60 + now.getMinutes();
 
-  function toMins(t) {
-    if (!t) return null;
-    const parts = t.toString().split(':');
-    if (parts.length < 2) return null;
-    return parseInt(parts[0]) * 60 + parseInt(parts[1]);
+  function toDateTime(dateStr, timeStr) {
+    if (!timeStr) return null;
+    if (dateStr) {
+      const dt = new Date(`${dateStr}T${timeStr}:00`);
+      if (!isNaN(dt)) return dt;
+    }
+    // ถ้าไม่มีวันที่ ใช้วันนี้
+    const [h,m] = timeStr.split(':').map(Number);
+    const dt = new Date();
+    dt.setHours(h, m, 0, 0);
+    return dt;
   }
 
-  const inMins = toMins(rec.timeIn);
-  const outMins = toMins(rec.timeOut);
+  const outDt = toDateTime(rec.timeOutDate, rec.timeOut);
+  const inDt  = toDateTime(rec.timeInDate,  rec.timeIn);
 
   // ไม่มีข้อมูลเลย
-  if (!inMins && !outMins) return { text: 'รอ', color: 'var(--accent)', bg: '#fef9ec', icon: '🟡', done: false };
+  if (!inDt && !outDt) return { text: 'รอ', color: 'var(--accent)', bg: '#fef9ec', icon: '🟡', done: false };
 
-  if (outMins !== null) {
-    if (nowMins >= outMins) {
-      // เลยเวลาออกแล้ว = กลับแล้ว
+  if (outDt) {
+    if (now >= outDt) {
       return { text: 'กลับแล้ว', color: 'var(--muted)', bg: '#f3f4f6', icon: '⚫', done: true };
     } else {
-      // ยังไม่ถึงเวลาออก = นับถอยหลัง
-      const diff = outMins - nowMins;
+      const diff = Math.round((outDt - now) / 60000);
       const h = Math.floor(diff / 60);
       const m = diff % 60;
       const countdown = h > 0 ? `${h}ชม. ${m}น.` : `${m} น.`;
@@ -538,7 +541,6 @@ function getSmartStatus(rec) {
     }
   }
 
-  // มีเวลาเข้าแต่ยังไม่มีเวลาออก
   return { text: 'เข้าแล้ว', color: 'var(--success)', bg: '#dcfce7', icon: '🟢', done: false };
 }
 
@@ -651,23 +653,38 @@ function openModal(type, idx, editMode=false) {
 
       <!-- เวลาเข้า-ออก -->
       <div style="background:var(--bg);border-radius:var(--radius-sm);padding:14px;margin-bottom:12px;">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-          <div style="font-size:13px;font-weight:600;color:var(--text);">⏰ เวลาเข้า-ออก</div>
-          <div style="font-size:12px;color:var(--muted);background:white;padding:4px 10px;border-radius:20px;border:1px solid var(--border);">📅 ${s.date||'ไม่ระบุวันที่'}</div>
+        <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:12px;">⏰ เวลาเข้า-ออก</div>
+
+        <!-- เวลาเข้า -->
+        <div style="background:white;border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:8px;border:2px solid ${rec.timeIn?'var(--success)':'var(--border)'};">
+          <div style="font-size:11px;color:var(--muted);margin-bottom:6px;font-weight:500;">🟢 เวลาเข้า รพ.</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+            <div>
+              <div style="font-size:10px;color:var(--muted);margin-bottom:3px;">วันที่</div>
+              <input type="date" id="inp-in-date-${key}" class="input-field" value="${rec.timeInDate||''}" style="font-size:13px;padding:7px 8px;">
+            </div>
+            <div>
+              <div style="font-size:10px;color:var(--muted);margin-bottom:3px;">เวลา</div>
+              <input type="time" id="inp-in-${key}" class="input-field" value="${rec.timeIn||''}" style="font-size:15px;text-align:center;${rec.timeIn?'color:var(--success);font-weight:700;':''}">
+            </div>
+          </div>
+          <button onclick="setNowField('in','${key}')" style="margin-top:6px;width:100%;padding:6px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);font-family:'Sarabun',sans-serif;font-size:12px;color:var(--muted);cursor:pointer;">⏱ วันที่+เวลาปัจจุบัน</button>
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-          <div>
-            <div style="font-size:11px;color:var(--muted);margin-bottom:5px;">🟢 เวลาเข้า รพ.</div>
-            <input type="time" id="inp-in-${key}" class="input-field" value="${rec.timeIn||''}"
-              style="font-size:16px;text-align:center;${rec.timeIn?'color:var(--success);border-color:var(--success);font-weight:700;':''}">
-            <button onclick="setNowField('in','${key}')" style="margin-top:5px;width:100%;padding:7px;background:white;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:'Sarabun',sans-serif;font-size:12px;color:var(--muted);cursor:pointer;">⏱ เวลาปัจจุบัน</button>
+
+        <!-- เวลาออก -->
+        <div style="background:white;border-radius:var(--radius-sm);padding:10px 12px;border:2px solid ${rec.timeOut?'var(--danger)':'var(--border)'};">
+          <div style="font-size:11px;color:var(--muted);margin-bottom:6px;font-weight:500;">🔴 เวลาออก รพ.</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+            <div>
+              <div style="font-size:10px;color:var(--muted);margin-bottom:3px;">วันที่</div>
+              <input type="date" id="inp-out-date-${key}" class="input-field" value="${rec.timeOutDate||''}" style="font-size:13px;padding:7px 8px;">
+            </div>
+            <div>
+              <div style="font-size:10px;color:var(--muted);margin-bottom:3px;">เวลา</div>
+              <input type="time" id="inp-out-${key}" class="input-field" value="${rec.timeOut||''}" style="font-size:15px;text-align:center;${rec.timeOut?'color:var(--danger);font-weight:700;':''}">
+            </div>
           </div>
-          <div>
-            <div style="font-size:11px;color:var(--muted);margin-bottom:5px;">🔴 เวลาออก รพ.</div>
-            <input type="time" id="inp-out-${key}" class="input-field" value="${rec.timeOut||''}"
-              style="font-size:16px;text-align:center;${rec.timeOut?'color:var(--danger);border-color:var(--danger);font-weight:700;':''}">
-            <button onclick="setNowField('out','${key}')" style="margin-top:5px;width:100%;padding:7px;background:white;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:'Sarabun',sans-serif;font-size:12px;color:var(--muted);cursor:pointer;">⏱ เวลาปัจจุบัน</button>
-          </div>
+          <button onclick="setNowField('out','${key}')" style="margin-top:6px;width:100%;padding:6px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);font-family:'Sarabun',sans-serif;font-size:12px;color:var(--muted);cursor:pointer;">⏱ วันที่+เวลาปัจจุบัน</button>
         </div>
       </div>
 
@@ -1022,28 +1039,32 @@ function editSpeakerField(type, idx, field, value) {
 }
 
 function setNowField(field, key) {
-  const t = now();
-  const el = document.getElementById(`inp-${field==='in'?'in':'out'}-${key}`);
-  if (el) {
-    el.value = t;
-    el.style.color = field==='in' ? 'var(--success)' : 'var(--danger)';
-    el.style.fontWeight = '700';
-  }
+  const now = new Date();
+  const t = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  const d = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+  const timeEl = document.getElementById(`inp-${field==='in'?'in':'out'}-${key}`);
+  const dateEl = document.getElementById(`inp-${field==='in'?'in':'out'}-date-${key}`);
+  if (timeEl) { timeEl.value = t; timeEl.style.color = field==='in'?'var(--success)':'var(--danger)'; timeEl.style.fontWeight='700'; }
+  if (dateEl) dateEl.value = d;
 }
 
 function saveAllFields(type, idx, key) {
-  const timeIn  = document.getElementById(`inp-in-${key}`)?.value || '';
-  const timeOut = document.getElementById(`inp-out-${key}`)?.value || '';
-  const car     = document.getElementById(`inp-car-${key}`)?.value || '';
-  const plate   = document.getElementById(`inp-plate-${key}`)?.value || '';
-  const hotel   = document.getElementById(`inp-hotel-${key}`)?.value || '';
-  const date    = document.getElementById(`inp-date-${key}`)?.value || '';
+  const timeIn      = document.getElementById(`inp-in-${key}`)?.value || '';
+  const timeInDate  = document.getElementById(`inp-in-date-${key}`)?.value || '';
+  const timeOut     = document.getElementById(`inp-out-${key}`)?.value || '';
+  const timeOutDate = document.getElementById(`inp-out-date-${key}`)?.value || '';
+  const car         = document.getElementById(`inp-car-${key}`)?.value || '';
+  const plate       = document.getElementById(`inp-plate-${key}`)?.value || '';
+  const hotel       = document.getElementById(`inp-hotel-${key}`)?.value || '';
+  const date        = document.getElementById(`inp-date-${key}`)?.value || '';
 
   if (!records[key]) records[key] = {};
-  records[key].timeIn  = timeIn;
-  records[key].timeOut = timeOut;
-  records[key].car     = car;
-  records[key].plate   = plate;
+  records[key].timeIn      = timeIn;
+  records[key].timeInDate  = timeInDate;
+  records[key].timeOut     = timeOut;
+  records[key].timeOutDate = timeOutDate;
+  records[key].car         = car;
+  records[key].plate       = plate;
   saveRec();
 
   // sync ไป Sheets
