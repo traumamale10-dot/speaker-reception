@@ -135,7 +135,7 @@ tbody td { padding:9px 8px; }
 <body>
 
 <div class="header">
-  <div class="header-icon">🎤</div>
+  <div class="header-icon"></div>
   <h1>แผนกต้อนรับวิทยากร</h1>
   <div class="header-sub">Speaker Reception System</div>
   <div class="header-date" id="headerDate"></div>
@@ -496,7 +496,7 @@ function updateSummary() {
     const r = records[`${currentType}-${s.index}`]||{};
     const st = getSmartStatus(r);
     if (st.done) outC++;
-    else if (r.timeIn) inC++;
+    else if (st.icon === '🟢') inC++;
     else waitC++;
   });
   document.getElementById('sum-total').textContent = list.length;
@@ -532,12 +532,13 @@ function getSmartStatus(rec) {
     return dt;
   }
 
-  const outDt = toDateTime(rec.timeOutDate, rec.timeOut);
   const inDt  = toDateTime(rec.timeInDate,  rec.timeIn);
+  const outDt = toDateTime(rec.timeOutDate, rec.timeOut);
 
   // ไม่มีข้อมูลเลย
   if (!inDt && !outDt) return { text: 'รอ', color: 'var(--accent)', bg: '#fef9ec', icon: '🟡', done: false };
 
+  // มีเวลาออก
   if (outDt) {
     if (now >= outDt) {
       return { text: 'กลับแล้ว', color: 'var(--muted)', bg: '#f3f4f6', icon: '⚫', done: true };
@@ -550,7 +551,22 @@ function getSmartStatus(rec) {
     }
   }
 
-  return { text: 'เข้าแล้ว', color: 'var(--success)', bg: '#dcfce7', icon: '🟢', done: false };
+  // มีเวลาเข้า แต่ไม่มีเวลาออก
+  if (inDt) {
+    if (now >= inDt) {
+      // ถึงเวลาเข้าแล้ว = เข้าแล้ว
+      return { text: 'เข้าแล้ว', color: 'var(--success)', bg: '#dcfce7', icon: '🟢', done: false };
+    } else {
+      // ยังไม่ถึงเวลาเข้า = รอรับ
+      const diff = Math.round((inDt - now) / 60000);
+      const h = Math.floor(diff / 60);
+      const m = diff % 60;
+      const countdown = h > 0 ? `${h}ชม. ${m}น.` : `${m} น.`;
+      return { text: `รับใน ${countdown}`, color: '#2563c7', bg: '#eff6ff', icon: '🕐', done: false };
+    }
+  }
+
+  return { text: 'รอ', color: 'var(--accent)', bg: '#fef9ec', icon: '🟡', done: false };
 }
 
 function renderTable() {
@@ -1019,7 +1035,12 @@ function restoreAlarms() {
 function resetRec(type,idx) {
   if(!confirm('รีเซ็ตเวลาเข้า-ออกใช่ไหม?')) return;
   const key=`${type}-${idx}`;
-  if(records[key]){delete records[key].timeIn; delete records[key].timeOut;}
+  if(records[key]){
+    delete records[key].timeIn;
+    delete records[key].timeInDate;
+    delete records[key].timeOut;
+    delete records[key].timeOutDate;
+  }
   saveRec(); showToast('↩ รีเซ็ตแล้ว');
   openModal(type,idx); renderList(); renderTable();
 }
@@ -1139,7 +1160,7 @@ function saveRec() {
   if (window.fbDb) {
     const light = {};
     Object.entries(records).forEach(([k,v]) => {
-      light[k] = { timeIn: v.timeIn||'', timeOut: v.timeOut||'', car: v.car||'', plate: v.plate||'', alarm: v.alarm||'' };
+      light[k] = { timeIn: v.timeIn||'', timeInDate: v.timeInDate||'', timeOut: v.timeOut||'', timeOutDate: v.timeOutDate||'', car: v.car||'', plate: v.plate||'', alarm: v.alarm||'' };
     });
     window.fbSet(window.fbRef(window.fbDb, 'records'), light).catch(()=>{});
   }
@@ -1275,7 +1296,7 @@ onValue(ref(fbDb, 'records'), (snapshot) => {
   let changed = false;
   Object.entries(data).forEach(([k, v]) => {
     if (!records[k]) records[k] = {};
-    ['timeIn','timeOut','car','plate','alarm'].forEach(f => {
+    ['timeIn','timeInDate','timeOut','timeOutDate','car','plate','alarm'].forEach(f => {
       if (v[f] !== undefined && records[k][f] !== v[f]) { records[k][f] = v[f]; changed = true; }
     });
   });
