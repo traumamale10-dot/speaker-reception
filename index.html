@@ -303,6 +303,7 @@ async function fetchSheet(name) {
     index: i,
     num:     r.c[0]?.v || (i+1),
     date:    r.c[1]?.f || r.c[1]?.v || '',
+    dateRaw: r.c[1]?.v || '',   // ใช้สำหรับ sort (ตัวเลข หรือ Date string จาก Sheets)
     name:    r.c[3]?.v || '',
     hotel:   r.c[4]?.v || '',
     timeIn:  parseSheetTime(r.c[5]),
@@ -426,6 +427,18 @@ function updateDateFilter() {
   });
 }
 
+// แปลง dateRaw จาก Sheets → ตัวเลขสำหรับ sort
+// Sheets ส่งมาเป็น "Date(2026,3,8)" หรือตัวเลข serial หรือ string
+function parseDateRaw(v) {
+  if (!v && v !== 0) return Infinity;
+  if (typeof v === 'number') return v;
+  if (typeof v === 'string') {
+    const m = v.match(/Date\((\d+),(\d+),(\d+)/);
+    if (m) return new Date(+m[1], +m[2], +m[3]).getTime();
+  }
+  return Infinity;
+}
+
 function renderList() {
   const list = speakers[currentType];
   const q = document.getElementById('searchInput')?.value.trim().toLowerCase() || '';
@@ -460,6 +473,16 @@ function renderList() {
       }
     }
     return true;
+  });
+
+  // เรียงตามวันที่ แล้วตามเวลาเข้า รพ. (ไม่มีเวลาอยู่ท้าย)
+  filtered.sort((a, b) => {
+    const da = parseDateRaw(a.dateRaw);
+    const db = parseDateRaw(b.dateRaw);
+    if (da !== db) return da - db;
+    const ta = a.timeIn || '99:99';
+    const tb = b.timeIn || '99:99';
+    return ta.localeCompare(tb);
   });
 
   updateSummary();
